@@ -1,0 +1,74 @@
+{
+  "name": "@iter-tools/regex",
+  "version": "0.1.0",
+  "description": "A fully streaming regular expression engine",
+  "main": "lib/regex.cjs",
+  "module": "lib/regex.mjs",
+  "types": "lib/regex.d.ts",
+  "exports": {
+    "import": "./lib/regex.mjs",
+    "require": "./lib/regex.cjs"
+  },
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "files": [
+    "lib/*"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "test": "jest",
+    "verify": "npm run lint && jest --coverage && codecov",
+    "format": "prettier --write '**/*.{js,md}'",
+    "lint": "eslint ."
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint"
+    ],
+    "*.md": [
+      "prettier -c"
+    ]
+  },
+  "keywords": [
+    "regex",
+    "regular",
+    "iterator",
+    "iterable",
+    "match",
+    "test",
+    "engine",
+    "capture",
+    "streaming"
+  ],
+  "repository": "git@github.com:iter-tools/regex.git",
+  "author": "Conrad Buck <conartist6@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "codecov": "^3.6.1",
+    "eslint": "^7.5.0",
+    "eslint-config-prettier": "^6.3.0",
+    "eslint-config-standard": "^14.1.0",
+    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-jest": "^23.20.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.1.1",
+    "eslint-plugin-promise": "^4.1.1",
+    "eslint-plugin-standard": "^4.0.1",
+    "husky": "^4.2.5",
+    "jest": "^26.2.2",
+    "lint-staged": "^10.2.11",
+    "prettier": "^2.0.5",
+    "typescript": "^3.9.7"
+  },
+  "dependencies": {
+    "@iter-tools/imm-stack": "^1.0.0",
+    "@iter-tools/queue": "^1.5.1",
+    "iter-tools": "7.0.2"
+  }
+}
