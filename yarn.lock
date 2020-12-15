@@ -232,13 +232,6 @@
   dependencies:
     "@babel/helper-plugin-utils" "^7.10.4"
 
-"@babel/runtime@^7.12.1":
-  version "7.12.5"
-  resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.12.5.tgz#410e7e487441e1b360c29be715d870d9b985882e"
-  integrity sha512-plcc+hbExy3McchJCEQG3knOsuh3HH+Prx1P6cLIkET/0dLuQDEnrT+s27Axgc9bqfsmNUNHfscgMUdBpC9xfg==
-  dependencies:
-    regenerator-runtime "^0.13.4"
-
 "@babel/template@^7.10.4", "@babel/template@^7.12.7", "@babel/template@^7.3.3":
   version "7.12.7"
   resolved "https://registry.yarnpkg.com/@babel/template/-/template-7.12.7.tgz#c817233696018e39fbb6c491d2fb684e05ed43bc"
@@ -322,10 +315,10 @@
   resolved "https://registry.yarnpkg.com/@iter-tools/imm-stack/-/imm-stack-1.0.0.tgz#e573c1fbf150605f515e96db5e4bd1094e8d28ad"
   integrity sha512-hodj2ByHMoKsT7ULHJWoYwkUJ9DWgDDLy//uLBecriywR90Ste3/t2S5gWmFjPV4BGTjEFxwI3b6lDCuZqfS+A==
 
-"@iter-tools/queue@^1.5.1":
-  version "1.5.1"
-  resolved "https://registry.yarnpkg.com/@iter-tools/queue/-/queue-1.5.1.tgz#def97c5caaa20eb9239306e1d5b61eae05a5bdeb"
-  integrity sha512-3VH2HenAGHJfIwowy6iFhe5gjgVgCZTgVEYA7e4TyJeF11cSoWDdObp2Y4J+ittlIm2EBUEedbzZ4QN4lS7GsA==
+"@iter-tools/queue@^1.5.2":
+  version "1.5.2"
+  resolved "https://registry.yarnpkg.com/@iter-tools/queue/-/queue-1.5.2.tgz#b74b86ab6277310f452b47e5157255f9efe72097"
+  integrity sha512-K/17A9nYbSkAEv09vNhnH2jdTimZ1QgwCFuat9dM0UjVlQYKwn1GTJVSre0V1Vva0Z8lJ6CTM8KGbCQCkshYxg==
 
 "@jest/console@^26.6.2":
   version "26.6.2"
@@ -2503,12 +2496,10 @@ istanbul-reports@^3.0.2:
     html-escaper "^2.0.0"
     istanbul-lib-report "^3.0.0"
 
-iter-tools@7.0.2:
+iter-tools-es@^7.0.2:
   version "7.0.2"
-  resolved "https://registry.yarnpkg.com/iter-tools/-/iter-tools-7.0.2.tgz#3f67b270d80341dc6c464b311c56e279a739672d"
-  integrity sha512-eQOeYO/EocvvxYJO0rcuMNr3sqsOe+LRxDLmAPmKmqIlLoJ90GFxRv/oSJ3yr0FcxOOcrH0ivmKoal/DOmSO+w==
-  dependencies:
-    "@babel/runtime" "^7.12.1"
+  resolved "https://registry.yarnpkg.com/iter-tools-es/-/iter-tools-es-7.0.2.tgz#3be2bda5688ba1b5d5e59c1e35d77204425c247c"
+  integrity sha512-xPv3GDV81TqH6MrFytRiZQYb/gRk6Vx+oPkpyAB6zxotketR0fWIqxtT7xHkqlUrWJz8awOSatz9G8tCpnGCsg==
 
 jest-changed-files@^26.6.2:
   version "26.6.2"
@@ -3732,11 +3723,6 @@ read-pkg@^5.2.0:
     normalize-package-data "^2.5.0"
     parse-json "^5.0.0"
     type-fest "^0.6.0"
-
-regenerator-runtime@^0.13.4:
-  version "0.13.7"
-  resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.13.7.tgz#cac2dacc8a1ea675feaabaeb8ae833898ae46f55"
-  integrity sha512-a54FxoJDIr27pgf7IgeQGxmqUNYrcV338lf/6gH456HZ/PhX+5BcwHXG9ajESmwe6WRO0tAzRUrRmNONWgkrew==
 
 regex-not@^1.0.0, regex-not@^1.0.2:
   version "1.0.2"

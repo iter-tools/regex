@@ -68,7 +68,7 @@
   },
   "dependencies": {
     "@iter-tools/imm-stack": "^1.0.0",
-    "@iter-tools/queue": "^1.5.1",
-    "iter-tools": "7.0.2"
+    "@iter-tools/queue": "^1.5.2",
+    "iter-tools-es": "^7.0.2"
   }
 }
