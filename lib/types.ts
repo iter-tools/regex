@@ -1,5 +1,4 @@
 import { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
-import { Expression } from './engine';
 
 export { Stack };
 
@@ -7,7 +6,6 @@ export type Pattern = {
   matcher: Matcher;
   source: string;
   flags: string;
-  global: boolean;
   ignoreCase: boolean;
   multiline: boolean;
   dotAll: boolean;
@@ -21,9 +19,9 @@ export type State = {
   };
 };
 
-export type ExpressionResult = {
-  type: 'expr';
-  expr: Expression;
+export type SeqsResult = {
+  type: 'seqs';
+  seqs: Iterable<ContinuationResult>;
 };
 
 export type ContinuationResult = {
@@ -42,7 +40,7 @@ export type FailureResult = {
   type: 'failure';
 };
 
-export type Result = ContinuationResult | ExpressionResult | SuccessResult | FailureResult;
+export type Result = ContinuationResult | SeqsResult | SuccessResult | FailureResult;
 
 export type Matcher = {
   width: 0 | 1;

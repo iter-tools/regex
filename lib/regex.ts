@@ -1,16 +1,6 @@
 import emptyStack from '@iter-tools/imm-stack';
-import { peekerate } from 'iter-tools-es';
-import { Expression } from './engine';
 import { map } from './utils';
-import {
-  ExpressionResult,
-  FailureResult,
-  Matcher,
-  Pattern,
-  Result,
-  State,
-  UnboundMatcher,
-} from './types';
+import { FailureResult, Matcher, Pattern, Result, State, UnboundMatcher } from './types';
 
 const fail: FailureResult = {
   type: 'failure',
@@ -84,14 +74,12 @@ const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => ({
   match: (state) => {
     return seqs.length
       ? {
-          type: 'expr',
-          expr: new Expression(
-            map(seqs, (seq) => ({
-              type: 'cont',
-              next: seq(next),
-              state,
-            })),
-          ),
+          type: 'seqs',
+          seqs: map(seqs, (seq) => ({
+            type: 'cont',
+            next: seq(next),
+            state,
+          })),
         }
       : {
           type: 'cont',
@@ -109,14 +97,12 @@ const star = (exp: UnboundMatcher, greedy = true): UnboundMatcher => (next) => {
     match: (state: State): Result => {
       const matchers = greedy ? [expMatcher, next] : [next, expMatcher];
       return {
-        type: 'expr',
-        expr: new Expression(
-          map(matchers, (matcher) => ({
-            type: 'cont',
-            next: matcher,
-            state,
-          })),
-        ),
+        type: 'seqs',
+        seqs: map(matchers, (matcher) => ({
+          type: 'cont',
+          next: matcher,
+          state,
+        })),
       };
     },
   };
@@ -337,53 +323,8 @@ export const parse = (expression: string, flags = ''): Pattern => {
     matcher: exp.reduce()(term()),
     source: expression,
     flags,
-    global: flags.includes('g'),
     ignoreCase: flags.includes('i'),
     multiline: flags.includes('m'),
     dotAll: flags.includes('s'),
   };
-};
-
-const rootExpr = (pattern: Pattern): Expression => {
-  return (pattern.matcher.match({
-    result: null,
-    captures: {
-      stack: emptyStack,
-      list: emptyStack,
-    },
-  }) as ExpressionResult).expr;
-};
-
-function* generate(pattern: Pattern, iterable: Iterable<string>) {
-  const peekr = peekerate(iterable);
-  let expr = rootExpr(pattern);
-  let value, done;
-
-  try {
-    ({ value, done } = expr.next({ atStart: true, atEnd: peekr.done, chr: '', index: 0 }));
-    if (done) yield value, (expr = rootExpr(pattern));
-
-    while (!peekr.done) {
-      const { index, value: chr } = peekr;
-      ({ value, done } = expr.next({ atStart: false, atEnd: false, chr, index }));
-      if (done) yield value, (expr = rootExpr(pattern));
-
-      peekr.advance();
-    }
-
-    ({ value, done } = expr.next({ atStart: false, atEnd: true, chr: '', index: peekr.index }));
-    if (done) yield value, (expr = rootExpr(pattern));
-  } finally {
-    peekr.return();
-  }
-}
-
-export const exec = (pattern: string | Pattern, iterable: Iterable<string>) => {
-  const step = generate(typeof pattern === 'string' ? parse(pattern) : pattern, iterable).next();
-
-  return step.done ? null : step.value;
-};
-
-export const test = (pattern: string, iterable: Iterable<string>) => {
-  return exec(pattern, iterable) !== null;
 };

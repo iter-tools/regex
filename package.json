@@ -2,12 +2,12 @@
   "name": "@iter-tools/regex",
   "version": "0.1.0",
   "description": "A fully streaming regular expression engine",
-  "main": "lib/regex.cjs",
-  "module": "lib/regex.mjs",
-  "types": "lib/regex.d.ts",
+  "main": "lib/index.cjs",
+  "module": "lib/index.mjs",
+  "types": "lib/index.d.ts",
   "exports": {
-    "import": "./lib/regex.mjs",
-    "require": "./lib/regex.cjs"
+    "import": "./lib/index.mjs",
+    "require": "./lib/index.cjs"
   },
   "engines": {
     "node": ">=10.0.0"

@@ -1,5 +1,11 @@
+import emptyStack from '@iter-tools/imm-stack';
 import { flattenCapture } from './captures';
-import { ContinuationResult, ExpressionResult, Result, SuccessResult } from './types';
+import { Pattern, ContinuationResult, Result, SuccessResult, SeqsResult } from './types';
+
+type ExpressionResult = {
+  type: 'expr';
+  expr: Expression;
+};
 
 export class Sequence {
   // An expression can be distributed into a sequence,
@@ -68,10 +74,13 @@ export class Sequence {
       return this.fail();
     } else if (result.type === 'success') {
       return this.succeed(result);
-    } else if (result.type === 'expr') {
-      result.expr.parent = this;
-      this.value = result;
-      return result.expr.best;
+    } else if (result.type === 'seqs') {
+      const expr = new Expression(result.seqs, this);
+      this.value = {
+        type: 'expr',
+        expr,
+      };
+      return expr.best;
     } else {
       this.value = result;
       return this;
@@ -94,6 +103,18 @@ type NextArg = {
 export class Expression {
   best: Sequence;
   parent: Sequence | null;
+
+  static fromPattern(pattern: Pattern): Expression {
+    return new Expression(
+      (pattern.matcher.match({
+        result: null,
+        captures: {
+          stack: emptyStack,
+          list: emptyStack,
+        },
+      }) as SeqsResult).seqs,
+    );
+  }
 
   constructor(seqs: Iterable<ContinuationResult>, parent: Sequence | null = null) {
     this.parent = parent;
