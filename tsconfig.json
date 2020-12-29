@@ -3,6 +3,8 @@
     "noEmit": true,
     "declaration": false,
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "target": "es2018",
+    "moduleResolution": "node"
   }
 }

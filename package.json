@@ -35,21 +35,14 @@
       "prettier -c"
     ]
   },
-  "keywords": [
-    "regex",
-    "regular",
-    "iterator",
-    "iterable",
-    "match",
-    "test",
-    "engine",
-    "capture",
-    "streaming"
-  ],
-  "repository": "git@github.com:iter-tools/regex.git",
-  "author": "Conrad Buck <conartist6@gmail.com>",
-  "license": "MIT",
+  "dependencies": {
+    "@iter-tools/imm-stack": "^1.0.0",
+    "iter-tools-es": "^7.0.2"
+  },
   "devDependencies": {
+    "@babel/plugin-transform-modules-commonjs": "^7.12.1",
+    "@babel/preset-typescript": "^7.12.7",
+    "babel-jest": "^26.6.3",
     "codecov": "^3.6.1",
     "eslint": "^7.5.0",
     "eslint-config-prettier": "^6.3.0",
@@ -66,9 +59,18 @@
     "prettier": "^2.0.5",
     "typescript": "^3.9.7"
   },
-  "dependencies": {
-    "@iter-tools/imm-stack": "^1.0.0",
-    "@iter-tools/queue": "^1.5.2",
-    "iter-tools-es": "^7.0.2"
-  }
+  "keywords": [
+    "regex",
+    "regular",
+    "iterator",
+    "iterable",
+    "match",
+    "test",
+    "engine",
+    "capture",
+    "streaming"
+  ],
+  "repository": "git@github.com:iter-tools/regex.git",
+  "author": "Conrad Buck <conartist6@gmail.com>",
+  "license": "MIT"
 }
