@@ -1,23 +1,29 @@
 import emptyStack from '@iter-tools/imm-stack';
 import { flattenCapture } from './captures';
-import { Pattern, ContinuationResult, Result, SuccessResult, SeqsResult } from './types';
+import { Pattern, ContinuationResult, Result, SuccessResult, ExpressionResult } from './types';
 
-type ExpressionResult = {
+type ExpressionState = {
   type: 'expr';
   expr: Expression;
 };
 
+type SuccessState = SuccessResult;
+
+type ContinuationState = ContinuationResult;
+
+type State = ExpressionState | ContinuationState | SuccessState;
+
 export class Sequence {
   // An expression can be distributed into a sequence,
   // so a sequence may be an expression.
-  value: ExpressionResult | ContinuationResult | SuccessResult;
+  state: State;
   expr: Expression;
   // next, prev in more standard terminology
   better: Sequence | null = null;
   worse: Sequence | null = null;
 
-  constructor(value: ContinuationResult, expr: Expression) {
-    this.value = value;
+  constructor(state: ContinuationState, expr: Expression) {
+    this.state = state;
     this.expr = expr;
   }
 
@@ -28,7 +34,7 @@ export class Sequence {
 
   // problem(?): best is never updated
   fail(): Sequence | null {
-    if (this.value.type === 'expr') {
+    if (this.state.type === 'expr') {
       throw new Error('Expressions only fail when all their sequences fail');
     }
 
@@ -45,14 +51,14 @@ export class Sequence {
     }
     if (worse !== null) {
       worse.better = better;
-      if (better === null && worse.value.type === 'success') {
-        return worse.succeed(worse.value);
+      if (better === null && worse.state.type === 'success') {
+        return worse.succeed(worse.state);
       }
     }
     return seq.next;
   }
 
-  succeed(successResult: SuccessResult): Sequence {
+  succeed(successResult: SuccessState): Sequence {
     const { worse } = this;
 
     let seq: Sequence = this;
@@ -65,7 +71,7 @@ export class Sequence {
 
     // stop matching against any less preferable alternate sequences
     seq.worse = null;
-    seq.value = successResult;
+    seq.state = successResult;
     return seq;
   }
 
@@ -74,15 +80,15 @@ export class Sequence {
       return this.fail();
     } else if (result.type === 'success') {
       return this.succeed(result);
-    } else if (result.type === 'seqs') {
-      const expr = new Expression(result.seqs, this);
-      this.value = {
+    } else if (result.type === 'expr') {
+      const expr = new Expression(result.expr, this);
+      this.state = {
         type: 'expr',
         expr,
       };
       return expr.best;
     } else {
-      this.value = result;
+      this.state = result;
       return this;
     }
   }
@@ -93,7 +99,7 @@ export class Sequence {
   }
 }
 
-type NextArg = {
+type StepProps = {
   atStart: boolean;
   atEnd: boolean;
   chr: string;
@@ -112,7 +118,7 @@ export class Expression {
           stack: emptyStack,
           list: emptyStack,
         },
-      }) as SeqsResult).seqs,
+      }) as ExpressionResult).expr,
     );
   }
 
@@ -122,9 +128,9 @@ export class Expression {
     const best = new Sequence(null as any, this);
     let tail = best;
     if (seqs != null) {
-      for (const value of seqs) {
+      for (const state of seqs) {
         const { worse } = tail;
-        const seq = new Sequence(value, this);
+        const seq = new Sequence(state, this);
         seq.better = tail;
         seq.worse = worse;
         tail.worse = seq;
@@ -141,28 +147,28 @@ export class Expression {
     this.best = best.worse;
   }
 
-  next({ atStart, atEnd, chr, index }: NextArg) {
+  evaluate({ atStart, atEnd, chr, index }: StepProps) {
     const { best } = this;
 
     let seq: Sequence | null = best;
 
-    while (seq !== null && best!.value.type !== 'success') {
+    while (seq !== null && best!.state.type !== 'success') {
       const hasChr = chr !== '';
       // I don't understand why this errors with destructuring
-      const value: ExpressionResult | ContinuationResult | SuccessResult = seq.value;
+      const state: State = seq.state;
 
-      if (value.type === 'expr') {
-        seq = value.expr.best;
+      if (state.type === 'expr') {
+        seq = state.expr.best;
       } else {
-        if (value.type !== 'success') {
-          const { next, state } = value;
+        if (state.type !== 'success') {
+          const { next, state: matchState } = state;
 
           if (next.width === 0) {
-            seq = seq.replaceWith(next.match(state));
+            seq = seq.replaceWith(next.match(matchState));
           } else if (atEnd) {
             seq = seq.fail();
           } else if (hasChr) {
-            seq.replaceWith(next.match(state, chr));
+            seq.replaceWith(next.match(matchState, chr));
             seq = seq.next;
           } else {
             seq = seq.next;
@@ -172,11 +178,25 @@ export class Expression {
         }
       }
     }
+  }
+}
+
+export class Engine {
+  root: Expression;
+
+  constructor(pattern: Pattern) {
+    this.root = Expression.fromPattern(pattern);
+  }
+
+  next(opts: StepProps) {
+    this.root.evaluate(opts);
+
+    const { best } = this.root;
 
     if (best === null) {
       return { value: null, done: true };
-    } else if (best.value.type === 'success') {
-      return { value: [...flattenCapture(best.value.capture)], done: true };
+    } else if (best.state.type === 'success') {
+      return { value: [...flattenCapture(best.state.capture)], done: true };
     } else {
       return { value: null, done: false };
     }

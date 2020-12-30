@@ -1,27 +1,27 @@
 import { peekerate } from 'iter-tools-es';
-import { Expression } from './engine';
+import { Engine } from './engine';
 import { parse } from './regex';
 import { Pattern } from './types';
 
 function* generate(pattern: Pattern, iterable: Iterable<string>) {
   const peekr = peekerate(iterable);
-  let expr = Expression.fromPattern(pattern);
+  let engine = new Engine(pattern);
   let value, done;
 
   try {
-    ({ value, done } = expr.next({ atStart: true, atEnd: peekr.done, chr: '', index: 0 }));
-    if (done) yield value, (expr = Expression.fromPattern(pattern));
+    ({ value, done } = engine.next({ atStart: true, atEnd: peekr.done, chr: '', index: 0 }));
+    if (done) yield value;
 
     while (!peekr.done) {
       const { index, value: chr } = peekr;
-      ({ value, done } = expr.next({ atStart: false, atEnd: false, chr, index }));
-      if (done) yield value, (expr = Expression.fromPattern(pattern));
+      ({ value, done } = engine.next({ atStart: false, atEnd: false, chr, index }));
+      if (done) yield value;
 
       peekr.advance();
     }
 
-    ({ value, done } = expr.next({ atStart: false, atEnd: true, chr: '', index: peekr.index }));
-    if (done) yield value, (expr = Expression.fromPattern(pattern));
+    ({ value, done } = engine.next({ atStart: false, atEnd: true, chr: '', index: peekr.index }));
+    if (done) yield value;
   } finally {
     peekr.return();
   }

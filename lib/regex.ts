@@ -1,6 +1,6 @@
 import emptyStack from '@iter-tools/imm-stack';
 import { map } from './utils';
-import { FailureResult, Matcher, Pattern, Result, State, UnboundMatcher } from './types';
+import { FailureResult, Matcher, Pattern, Result, MatchState, UnboundMatcher } from './types';
 
 const fail: FailureResult = {
   type: 'failure',
@@ -16,7 +16,7 @@ const compose = (lExp: UnboundMatcher, rExp: UnboundMatcher) => {
   return (next: Matcher) => lExp(rExp(next));
 };
 
-const growResult = (state: State, chr: string): State => {
+const growResult = (state: MatchState, chr: string): MatchState => {
   const { result, captures } = state;
   return captures.stack.size === 0 && result === null
     ? state
@@ -29,7 +29,7 @@ const growResult = (state: State, chr: string): State => {
 const term = (): Matcher => ({
   width: 0,
   desc: 'term',
-  match: (state: State) => {
+  match: (state: MatchState) => {
     const { result, captures } = state;
     return result !== null
       ? {
@@ -74,8 +74,8 @@ const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => ({
   match: (state) => {
     return seqs.length
       ? {
-          type: 'seqs',
-          seqs: map(seqs, (seq) => ({
+          type: 'expr',
+          expr: map(seqs, (seq) => ({
             type: 'cont',
             next: seq(next),
             state,
@@ -94,11 +94,11 @@ const star = (exp: UnboundMatcher, greedy = true): UnboundMatcher => (next) => {
   const matcher = {
     desc: '*',
     width: 0 as const,
-    match: (state: State): Result => {
+    match: (state: MatchState): Result => {
       const matchers = greedy ? [expMatcher, next] : [next, expMatcher];
       return {
-        type: 'seqs',
-        seqs: map(matchers, (matcher) => ({
+        type: 'expr',
+        expr: map(matchers, (matcher) => ({
           type: 'cont',
           next: matcher,
           state,

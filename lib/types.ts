@@ -11,7 +11,7 @@ export type Pattern = {
   dotAll: boolean;
 };
 
-export type State = {
+export type MatchState = {
   result: string | null;
   captures: {
     stack: Stack<Capture>;
@@ -19,15 +19,15 @@ export type State = {
   };
 };
 
-export type SeqsResult = {
-  type: 'seqs';
-  seqs: Iterable<ContinuationResult>;
+export type ExpressionResult = {
+  type: 'expr';
+  expr: Iterable<ContinuationResult>;
 };
 
 export type ContinuationResult = {
   type: 'cont';
   next: Matcher;
-  state: State;
+  state: MatchState;
 };
 
 export type SuccessResult = {
@@ -40,12 +40,12 @@ export type FailureResult = {
   type: 'failure';
 };
 
-export type Result = ContinuationResult | SeqsResult | SuccessResult | FailureResult;
+export type Result = ContinuationResult | ExpressionResult | SuccessResult | FailureResult;
 
 export type Matcher = {
   width: 0 | 1;
   desc: string;
-  match(state: State, chr?: string): Result;
+  match(state: MatchState, chr?: string): Result;
 };
 
 export type UnboundMatcher = (next: Matcher) => Matcher;
