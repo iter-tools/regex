@@ -5,23 +5,21 @@ import { Pattern } from './types';
 
 function* generate(pattern: Pattern, iterable: Iterable<string>) {
   const peekr = peekerate(iterable);
-  let engine = new Engine(pattern);
+  const engine = new Engine(pattern);
   let value, done;
 
   try {
-    ({ value, done } = engine.next({ atStart: true, atEnd: peekr.done, chr: '', index: 0 }));
-    if (done) yield value;
+    ({ value, done } = engine.step0(true, peekr.done));
+    if (value !== null) yield* value;
 
-    while (!peekr.done) {
-      const { index, value: chr } = peekr;
-      ({ value, done } = engine.next({ atStart: false, atEnd: false, chr, index }));
-      if (done) yield value;
+    while (!done && !peekr.done) {
+      engine.step1(peekr.value);
 
       peekr.advance();
-    }
 
-    ({ value, done } = engine.next({ atStart: false, atEnd: true, chr: '', index: peekr.index }));
-    if (done) yield value;
+      ({ value, done } = engine.step0(false, peekr.done));
+      if (value !== null) yield* value;
+    }
   } finally {
     peekr.return();
   }

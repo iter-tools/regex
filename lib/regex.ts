@@ -1,13 +1,9 @@
 import emptyStack from '@iter-tools/imm-stack';
-import { map } from './utils';
-import { FailureResult, Matcher, Pattern, Result, MatchState, UnboundMatcher } from './types';
-
-const fail: FailureResult = {
-  type: 'failure',
-};
+import { Matcher, Pattern, Result, MatchState, UnboundMatcher, ExpressionResult } from './types';
+import { flattenCapture } from './captures';
 
 const when = (condition: boolean, value: Result) => {
-  return condition ? value : fail;
+  return condition ? value : null;
 };
 
 const identity: UnboundMatcher = (next) => next;
@@ -26,7 +22,7 @@ const growResult = (state: MatchState, chr: string): MatchState => {
       };
 };
 
-const term = (): Matcher => ({
+const term = (getExpr: () => ExpressionResult | null): Matcher => ({
   width: 0,
   desc: 'term',
   match: (state: MatchState) => {
@@ -34,10 +30,10 @@ const term = (): Matcher => ({
     return result !== null
       ? {
           type: 'success',
-          result,
-          capture: captures.list.value,
+          expr: getExpr(),
+          captures: [...flattenCapture(captures.list.value)],
         }
-      : fail;
+      : null;
   },
 });
 
@@ -75,7 +71,7 @@ const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => ({
     return seqs.length
       ? {
           type: 'expr',
-          expr: map(seqs, (seq) => ({
+          expr: seqs.map((seq) => ({
             type: 'cont',
             next: seq(next),
             state,
@@ -98,7 +94,7 @@ const star = (exp: UnboundMatcher, greedy = true): UnboundMatcher => (next) => {
       const matchers = greedy ? [expMatcher, next] : [next, expMatcher];
       return {
         type: 'expr',
-        expr: map(matchers, (matcher) => ({
+        expr: matchers.map((matcher) => ({
           type: 'cont',
           next: matcher,
           state,
@@ -264,23 +260,19 @@ class PatternSequence {
 }
 
 export const parse = (expression: string, flags = ''): Pattern => {
-  let exp = new PatternExpression();
-  let { seq } = exp;
+  let expr = new PatternExpression();
+  let { seq } = expr;
   let idx = 0;
 
-  if (flags.includes('g')) {
-    throw new Error('global matching not implemented yet');
-  }
-
   const pushExpression = () => {
-    exp = new PatternExpression(exp, idx++);
-    ({ seq } = exp);
+    expr = new PatternExpression(expr, idx++);
+    ({ seq } = expr);
   };
 
   const popExpression = () => {
-    const exp_ = exp;
-    exp = exp.parent as PatternExpression;
-    ({ seq } = exp);
+    const exp_ = expr;
+    expr = expr.parent as PatternExpression;
+    ({ seq } = expr);
     seq.push(exp_.reduce());
   };
 
@@ -310,7 +302,7 @@ export const parse = (expression: string, flags = ''): Pattern => {
     } else if (chr === ')') {
       popExpression();
     } else if (chr === '|') {
-      seq = exp.splitSequence();
+      seq = expr.splitSequence();
     } else {
       seq.push(literal(chr));
     }
@@ -318,11 +310,23 @@ export const parse = (expression: string, flags = ''): Pattern => {
 
   popExpression();
 
+  const global = flags.includes('g');
+
+  const matcher = expr.reduce()(term(() => (global ? result : null)));
+  const result = matcher.match({
+    result: null,
+    captures: {
+      stack: emptyStack,
+      list: emptyStack,
+    },
+  }) as ExpressionResult;
+
   return {
     // Bind `next` arguments. The final `next` value is the terminal state.
-    matcher: exp.reduce()(term()),
+    expr: result,
     source: expression,
     flags,
+    global,
     ignoreCase: flags.includes('i'),
     multiline: flags.includes('m'),
     dotAll: flags.includes('s'),

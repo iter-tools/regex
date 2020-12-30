@@ -3,9 +3,10 @@ import { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
 export { Stack };
 
 export type Pattern = {
-  matcher: Matcher;
+  expr: ExpressionResult;
   source: string;
   flags: string;
+  global: boolean;
   ignoreCase: boolean;
   multiline: boolean;
   dotAll: boolean;
@@ -21,7 +22,7 @@ export type MatchState = {
 
 export type ExpressionResult = {
   type: 'expr';
-  expr: Iterable<ContinuationResult>;
+  expr: Array<ContinuationResult>;
 };
 
 export type ContinuationResult = {
@@ -32,13 +33,11 @@ export type ContinuationResult = {
 
 export type SuccessResult = {
   type: 'success';
-  result: string;
-  capture: Capture;
+  expr: ExpressionResult | null;
+  captures: Array<string | null>;
 };
 
-export type FailureResult = {
-  type: 'failure';
-};
+export type FailureResult = null;
 
 export type Result = ContinuationResult | ExpressionResult | SuccessResult | FailureResult;
 
