@@ -1,10 +1,17 @@
 import { Capture } from './types';
 
-export function* flattenCapture(capture: Capture): Iterable<string | null> {
-  yield capture.result;
-  if (capture.result !== null) {
-    for (const subCapture of capture.children) {
-      yield* flattenCapture(subCapture);
+function _flattenCapture(capture: Capture, captures: Array<string | null>) {
+  const { result, children, idx } = capture;
+  captures[idx] = result;
+  if (result !== null) {
+    for (const subCapture of children) {
+      _flattenCapture(subCapture, captures);
     }
   }
+}
+
+export function flattenCapture(capture: Capture, capturesLen: number): Array<string | null> {
+  const captures = new Array(capturesLen).fill(null);
+  _flattenCapture(capture, captures);
+  return captures;
 }

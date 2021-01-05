@@ -22,7 +22,7 @@ const growResult = (state: MatchState, chr: string): MatchState => {
       };
 };
 
-const term = (getExpr: () => ExpressionResult | null): Matcher => ({
+const term = (getExpr: () => ExpressionResult | null, capturesLen: number): Matcher => ({
   width: 0,
   desc: 'term',
   match: (state: MatchState) => {
@@ -31,7 +31,7 @@ const term = (getExpr: () => ExpressionResult | null): Matcher => ({
       ? {
           type: 'success',
           expr: getExpr(),
-          captures: [...flattenCapture(captures.list.value)],
+          captures: flattenCapture(captures.list.value, capturesLen),
         }
       : null;
   },
@@ -146,31 +146,24 @@ const endCapture = (): UnboundMatcher => (next) => ({
   match: (state) => {
     const { result, captures } = state;
     const { stack, list: children } = captures;
+    const { start, parentList, idx } = stack.value;
+    const end = result!.length;
 
-    let capture = stack.value;
+    const capture = {
+      ...stack.value,
+      idx,
+      start: result === null ? 0 : result.length,
+      end,
+      result: result!.slice(start!, end),
+      parentList,
+      children,
+    };
 
-    if (result === null) {
-      capture = {
-        ...capture,
-        start: null,
-      };
-    } else {
-      const { start } = capture;
-      const end = result.length;
+    let list = parentList;
 
-      capture = {
-        ...capture,
-        end,
-        result: result.slice(start!, end),
-        children,
-      };
-    }
-
-    let { parentList } = capture;
-
-    if (capture.result !== null && parentList.size && parentList.value.idx === capture.idx) {
+    if (list.size && list.value.idx === capture.idx) {
       // Subsequent matches of the same capture group overwrite
-      parentList = parentList.prev;
+      list = list.prev;
     }
 
     return {
@@ -181,7 +174,7 @@ const endCapture = (): UnboundMatcher => (next) => ({
         result,
         captures: {
           stack: stack.prev,
-          list: parentList.push(capture),
+          list: list.push(capture),
         },
       },
     };
@@ -262,10 +255,10 @@ class PatternSequence {
 export const parse = (expression: string, flags = ''): Pattern => {
   let expr = new PatternExpression();
   let { seq } = expr;
-  let idx = 0;
+  let idx = -1;
 
   const pushExpression = () => {
-    expr = new PatternExpression(expr, idx++);
+    expr = new PatternExpression(expr, ++idx);
     ({ seq } = expr);
   };
 
@@ -312,7 +305,7 @@ export const parse = (expression: string, flags = ''): Pattern => {
 
   const global = flags.includes('g');
 
-  const matcher = expr.reduce()(term(() => (global ? result : null)));
+  const matcher = expr.reduce()(term(() => (global ? result : null), idx + 1));
   const result = matcher.match({
     result: null,
     captures: {
