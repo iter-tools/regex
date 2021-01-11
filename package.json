@@ -37,7 +37,8 @@
   },
   "dependencies": {
     "@iter-tools/imm-stack": "^1.0.0",
-    "iter-tools-es": "^7.0.2"
+    "iter-tools-es": "^7.0.2",
+    "regexpp": "^3.1.0"
   },
   "devDependencies": {
     "@babel/plugin-transform-modules-commonjs": "^7.12.1",

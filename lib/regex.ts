@@ -1,6 +1,9 @@
 import emptyStack from '@iter-tools/imm-stack';
 import { Matcher, Pattern, Result, MatchState, UnboundMatcher, ExpressionResult } from './types';
 import { flattenCapture } from './captures';
+import { literalNames, Parser, Visit, visit, Visitors } from './ast';
+import { Alternative } from 'regexpp/ast';
+import { code, testers } from './literals';
 
 const when = (condition: boolean, value: Result) => {
   return condition ? value : null;
@@ -37,31 +40,25 @@ const term = (getExpr: () => ExpressionResult | null, capturesLen: number): Matc
   },
 });
 
-// match a .
-const dot = (): UnboundMatcher => (next: Matcher) => ({
+const unmatched = (): UnboundMatcher => (next: Matcher) => ({
   width: 1,
-  desc: 'dot',
-  match: (state, chr: string) => {
-    return when(chr !== '\n', {
-      type: 'cont',
-      next,
-      state: growResult(state, chr),
-    });
-  },
+  desc: 'unmatched',
+  match: (state) => ({ type: 'cont', next, state }),
 });
 
 // match a character
-const literal = (expected: string): UnboundMatcher => (next) => ({
+const literal = (desc: string, test: (chr: number) => boolean, negate = false): UnboundMatcher => (
+  next,
+) => ({
   width: 1,
-  desc: 'literal',
+  desc,
   match: (state, chr: string) => {
-    return when(chr === expected, {
+    return when(negate !== test(code(chr)), {
       type: 'cont',
       next,
       state: growResult(state, chr),
     });
   },
-  chr: expected,
 });
 
 const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => ({
@@ -85,28 +82,38 @@ const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => ({
   },
 });
 
-// kleene star -- match a pattern repeated 0 or more times
-const star = (exp: UnboundMatcher, greedy = true): UnboundMatcher => (next) => {
-  const matcher = {
-    desc: '*',
-    width: 0 as const,
-    match: (state: MatchState): Result => {
-      const matchers = greedy ? [expMatcher, next] : [next, expMatcher];
+const repeat = (exp: UnboundMatcher, greedy = true, min = 0, max = Infinity): UnboundMatcher => (
+  next,
+) => ({
+  desc: 'repeat',
+  width: 0 as const,
+  match: (state): Result => {
+    if (max === 0) {
       return {
-        type: 'expr',
-        expr: matchers.map((matcher) => ({
-          type: 'cont',
-          next: matcher,
-          state,
-        })),
+        type: 'cont',
+        next,
+        state,
       };
-    },
-  };
-
-  const expMatcher = exp(matcher);
-
-  return matcher;
-};
+    } else {
+      const nextMin = Math.max(0, min - 1);
+      const nextMax = Math.max(0, max - 1);
+      const recMatcher = exp(repeat(exp, greedy, nextMin, nextMax)(next));
+      if (min > 0) {
+        return {
+          type: 'cont',
+          next: recMatcher,
+          state,
+        };
+      } else {
+        const matchers = greedy ? [recMatcher, next] : [next, recMatcher];
+        return {
+          type: 'expr',
+          expr: matchers.map((next) => ({ type: 'cont', next, state })),
+        };
+      }
+    }
+  },
+});
 
 const startCapture = (idx: number): UnboundMatcher => (next) => ({
   width: 0,
@@ -185,127 +192,85 @@ const capture = (idx: number, exp: UnboundMatcher) => {
   return compose(startCapture(idx), compose(exp, endCapture()));
 };
 
-/**
- * An expression is either the root of the regex or a group.
- * It may branch into multiple possible sequences, and may be capturing
- * or non-capturing.
- */
-class PatternExpression {
-  parent: PatternExpression | null;
-  captureIdx: number | null;
-  sequences: Array<PatternSequence>;
+export const parse = (source: string, flags = ''): Pattern => {
+  const global = flags.includes('g');
+  const ignoreCase = flags.includes('i');
+  const multiline = flags.includes('m');
+  const dotAll = flags.includes('s');
 
-  constructor(parent: PatternExpression | null = null, captureIdx: number | null = null) {
-    this.parent = parent;
-    this.captureIdx = captureIdx; // null is non-capturing
-    this.sequences = [new PatternSequence(this)];
-  }
-
-  get seq() {
-    return this.sequences[this.sequences.length - 1];
-  }
-
-  splitSequence() {
-    const seq = new PatternSequence(this);
-    this.sequences.push(seq);
-    return seq;
-  }
-
-  reduce(): UnboundMatcher {
-    const { sequences, captureIdx: idx } = this;
-    const exp = expression(sequences.map((sequence) => sequence.reduce()));
-    return idx === null ? exp : capture(idx, exp);
-  }
-}
-
-/**
- * A collection of matchers which succeed or fail together when applied
- * to subsequent characters of the input. A sequence does not branch,
- * but it may contain groups which do contain branches.
- *
- * A simple sequence might be the pattern `abc` or `ab+`
- */
-class PatternSequence {
-  expression: PatternExpression;
-  matchers: Array<UnboundMatcher>;
-
-  constructor(expression: PatternExpression) {
-    this.expression = expression;
-    this.matchers = [];
-  }
-
-  get last() {
-    return this.matchers[this.matchers.length - 1];
-  }
-
-  push(value: UnboundMatcher) {
-    this.matchers.push(value);
-  }
-
-  modify(cb: (matcher: UnboundMatcher) => UnboundMatcher) {
-    const { matchers } = this;
-    matchers[matchers.length - 1] = cb(matchers[matchers.length - 1]);
-  }
-
-  reduce(): UnboundMatcher {
-    return this.matchers.reduce(compose, identity);
-  }
-}
-
-export const parse = (expression: string, flags = ''): Pattern => {
-  let expr = new PatternExpression();
-  let { seq } = expr;
   let idx = -1;
 
-  const pushExpression = () => {
-    expr = new PatternExpression(expr, ++idx);
-    ({ seq } = expr);
-  };
-
-  const popExpression = () => {
-    const exp_ = expr;
-    expr = expr.parent as PatternExpression;
-    ({ seq } = expr);
-    seq.push(exp_.reduce());
-  };
-
-  // Allow the expression to seek forwards through the input for a match
-  seq.push(star(dot(), false));
-
-  // Create the root capturing expression
-  pushExpression();
-
-  let escaped = false;
-  for (const chr of expression) {
-    if (chr === '\\') {
-      escaped = !escaped;
-    } else if (escaped) {
-      seq.push(literal(chr));
-
-      escaped = false;
-    } else if (chr === '.') {
-      seq.push(dot());
-    } else if (chr === '*') {
-      seq.modify(star);
-    } else if (chr === '+') {
-      seq.push(seq.last);
-      seq.modify(star);
-    } else if (chr === '(') {
-      pushExpression();
-    } else if (chr === ')') {
-      popExpression();
-    } else if (chr === '|') {
-      seq = expr.splitSequence();
-    } else {
-      seq.push(literal(chr));
+  const visitExpression = (alternatives: Array<Alternative>, visit: Visit<UnboundMatcher>) => {
+    // prettier-ignore
+    switch (alternatives.length) {
+      case 0: return identity;
+      case 1: return visit(alternatives[0]);
+      default: return expression(alternatives.map(visit));
     }
-  }
+  };
 
-  popExpression();
+  const visitors: Visitors<UnboundMatcher> = {
+    Backreference: () => {
+      throw new Error('Regex backreferences not implemented');
+    },
+    Assertion: (node) => {
+      if (node.kind === 'lookahead') {
+        throw new Error('Regex lookahead not implemented');
+      } else if (node.kind === 'lookbehind') {
+        throw new Error('Regex lookbehind unsupported');
+      } else if (node.kind === 'word') {
+        throw new Error('Regex word boundary assertions not implemented');
+      } else {
+        throw new Error('Regex edge assertions not implemented');
+      }
+    },
+    Alternative: (node, visit) => {
+      return node.elements.map(visit).reduce(compose, identity);
+    },
+    CapturingGroup: (node, visit) => {
+      if (typeof node.name === 'string') {
+        throw new Error('Regex named capturing groups not implemented');
+      }
+      return capture(++idx, visitExpression(node.alternatives, visit));
+    },
+    Pattern: (node, visit) => {
+      return expression([
+        compose(
+          // Allow the expression to seek forwards through the input for a match
+          // identity,
+          repeat(unmatched(), false),
+          // Evaluate pattern capturing to group 0
+          capture(++idx, visitExpression(node.alternatives, visit)),
+        ),
+      ]);
+    },
+    Character: (node) => {
+      return literal(String.fromCharCode(node.value), (c) => c === node.value);
+    },
+    CharacterClass: (node) => {
+      throw new Error('WIP');
+    },
+    CharacterSet: (node) => {
+      if (node.kind === 'any') {
+        return dotAll ? literal('.', testers.any) : literal('.', testers.newline, true);
+      } else if (node.kind === 'property') {
+        throw new Error('Regex unicode property escapes unsupported');
+      } else {
+        const desc = literalNames[node.kind];
+        return literal(node.negate ? desc.toUpperCase() : desc, testers[node.kind], node.negate);
+      }
+    },
+    Quantifier: (node, visit) => {
+      return repeat(visit(node.element), node.greedy, node.min, node.max);
+    },
+  };
 
-  const global = flags.includes('g');
+  const parser = new Parser();
+  parser.parseFlags(flags); // for validation
+  const ast = parser.parsePattern(source);
+  const seq = visit(ast, visitors);
 
-  const matcher = expr.reduce()(term(() => (global ? result : null), idx + 1));
+  const matcher = seq(term(() => (global ? result : null), idx + 1));
   const result = matcher.match({
     result: null,
     captures: {
@@ -317,11 +282,11 @@ export const parse = (expression: string, flags = ''): Pattern => {
   return {
     // Bind `next` arguments. The final `next` value is the terminal state.
     expr: result,
-    source: expression,
+    source,
     flags,
     global,
-    ignoreCase: flags.includes('i'),
-    multiline: flags.includes('m'),
-    dotAll: flags.includes('s'),
+    ignoreCase,
+    multiline,
+    dotAll,
   };
 };
