@@ -1,9 +1,20 @@
 import emptyStack from '@iter-tools/imm-stack';
-import { Matcher, Pattern, Result, MatchState, UnboundMatcher, ExpressionResult } from './types';
+import {
+  Matcher,
+  Pattern,
+  Result,
+  MatchState,
+  UnboundMatcher,
+  ExpressionResult,
+  Width0Matcher,
+  Flags,
+  RepetitionState,
+} from './types';
 import { flattenCapture } from './captures';
-import { literalNames, Parser, Visit, visit, Visitors } from './ast';
+import { getCharSetDesc, Parser, Visit, visit, Visitors } from './ast';
 import { Alternative } from 'regexpp/ast';
-import { code, testers } from './literals';
+import { code, getTester } from './literals';
+import { createTree } from './rbt';
 
 const when = (condition: boolean, value: Result) => {
   return condition ? value : null;
@@ -61,59 +72,110 @@ const literal = (desc: string, test: (chr: number) => boolean, negate = false): 
   },
 });
 
-const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => ({
-  width: 0,
-  desc: 'expression',
-  match: (state) => {
-    return seqs.length
-      ? {
-          type: 'expr',
-          expr: seqs.map((seq) => ({
+const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => {
+  const seqMatchers = seqs.map((seq) => seq(next));
+  return {
+    width: 0,
+    desc: 'expression',
+    match: (state) => {
+      return seqMatchers.length
+        ? {
+            type: 'expr',
+            expr: seqMatchers.map((next) => ({
+              type: 'cont',
+              next,
+              state,
+            })),
+          }
+        : {
             type: 'cont',
-            next: seq(next),
+            next,
             state,
-          })),
-        }
-      : {
-          type: 'cont',
-          next,
-          state,
-        };
+          };
+    },
+  };
+};
+
+const resetRepetitionStates = (
+  idxs: Array<number>,
+  initialRepetitionStates: Array<RepetitionState>,
+): UnboundMatcher => (next) => ({
+  desc: 'reset reptition state',
+  width: 0,
+  match: (state) => {
+    let { repetitionStates } = state;
+    for (const idx of idxs) {
+      repetitionStates = repetitionStates.find(idx).update(initialRepetitionStates[idx]);
+    }
+
+    return {
+      type: 'cont',
+      next,
+      state: {
+        ...state,
+        repetitionStates,
+      },
+    };
   },
 });
 
-const repeat = (exp: UnboundMatcher, greedy = true, min = 0, max = Infinity): UnboundMatcher => (
-  next,
-) => ({
-  desc: 'repeat',
-  width: 0 as const,
-  match: (state): Result => {
-    if (max === 0) {
-      return {
-        type: 'cont',
-        next,
-        state,
-      };
-    } else {
-      const nextMin = Math.max(0, min - 1);
-      const nextMax = Math.max(0, max - 1);
-      const recMatcher = exp(repeat(exp, greedy, nextMin, nextMax)(next));
-      if (min > 0) {
-        return {
-          type: 'cont',
-          next: recMatcher,
-          state,
-        };
-      } else {
-        const matchers = greedy ? [recMatcher, next] : [next, recMatcher];
-        return {
-          type: 'expr',
-          expr: matchers.map((next) => ({ type: 'cont', next, state })),
-        };
-      }
-    }
-  },
-});
+const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher => {
+  return (next) => {
+    let expMatcher: Matcher;
+
+    const matcher: Width0Matcher = {
+      desc: 'repeat',
+      width: 0 as const,
+      match: (state, context): Result => {
+        const repState = state.repetitionStates.get(key);
+        const { min, max, context: prevContext } = repState;
+
+        if (context === prevContext) {
+          return null;
+        } else if (max === 0) {
+          return {
+            type: 'cont',
+            next,
+            state,
+          };
+        } else {
+          const nextRepState = {
+            min: Math.max(0, min - 1),
+            max: Math.max(0, max - 1),
+            context,
+          };
+          const nextState = {
+            ...state,
+            // For tree of size n we only update lg(N) nodes
+            repetitionStates: state.repetitionStates.find(key).update(nextRepState),
+          };
+
+          if (min > 0) {
+            return {
+              type: 'cont',
+              next: expMatcher,
+              state: nextState,
+            };
+          } else {
+            const matchers = greedy ? [expMatcher, next] : [next, expMatcher];
+            return {
+              type: 'expr',
+              expr: matchers.map((next) => ({
+                type: 'cont',
+                next,
+                state: nextState,
+              })),
+            };
+          }
+        }
+      },
+    };
+
+    expMatcher = exp(matcher);
+
+    return matcher;
+  };
+};
 
 const startCapture = (idx: number): UnboundMatcher => (next) => ({
   width: 0,
@@ -192,101 +254,157 @@ const capture = (idx: number, exp: UnboundMatcher) => {
   return compose(startCapture(idx), compose(exp, endCapture()));
 };
 
-export const parse = (source: string, flags = ''): Pattern => {
-  const global = flags.includes('g');
-  const ignoreCase = flags.includes('i');
-  const multiline = flags.includes('m');
-  const dotAll = flags.includes('s');
+type ParserState = {
+  flags: Flags;
+  qIdxs: Array<number>;
+  qIdx: number;
+  cIdx: number;
+  initialRepetitionStates: Array<RepetitionState>;
+};
 
-  let idx = -1;
+const visitExpression = (
+  alternatives: Array<Alternative>,
+  state: ParserState,
+  visit: Visit<UnboundMatcher>,
+) => {
+  let result: UnboundMatcher;
 
-  const visitExpression = (alternatives: Array<Alternative>, visit: Visit<UnboundMatcher>) => {
-    // prettier-ignore
-    switch (alternatives.length) {
-      case 0: return identity;
-      case 1: return visit(alternatives[0]);
-      default: return expression(alternatives.map(visit));
+  const qIdxs = (state.qIdxs = []);
+
+  // prettier-ignore
+  switch (alternatives.length) {
+      case 0: result = identity; break;
+      case 1: result = visit(alternatives[0]); break;
+      default: result = expression(alternatives.map(visit)); break;
     }
+
+  return compose(resetRepetitionStates(qIdxs, state.initialRepetitionStates), result);
+};
+
+const visitors: Visitors<UnboundMatcher, ParserState> = {
+  Backreference: () => {
+    throw new Error('Regex backreferences not implemented');
+  },
+
+  Assertion: (node) => {
+    if (node.kind === 'lookahead') {
+      throw new Error('Regex lookahead not implemented');
+    } else if (node.kind === 'lookbehind') {
+      throw new Error('Regex lookbehind unsupported');
+    } else if (node.kind === 'word') {
+      throw new Error('Regex word boundary assertions not implemented');
+    } else {
+      throw new Error('Regex edge assertions not implemented');
+    }
+  },
+
+  Alternative: (node, state, visit) => {
+    return node.elements.map(visit).reduce(compose, identity);
+  },
+
+  CapturingGroup: (node, state, visit) => {
+    if (typeof node.name === 'string') {
+      throw new Error('Regex named capturing groups not implemented');
+    }
+    return capture(++state.cIdx, visitExpression(node.alternatives, state, visit));
+  },
+
+  Pattern: (node, state, visit) => {
+    const qIdx = ++state.qIdx;
+    state.initialRepetitionStates[qIdx] = { min: 0, max: Infinity, context: undefined! };
+    return expression([
+      compose(
+        // Allow the expression to seek forwards through the input for a match
+        // identity,
+        repeat(unmatched(), qIdx, false),
+        // Evaluate pattern capturing to group 0
+        capture(++state.cIdx, visitExpression(node.alternatives, state, visit)),
+      ),
+    ]);
+  },
+
+  Character: (node) => {
+    return literal(String.fromCharCode(node.value), (c) => c === node.value);
+  },
+
+  CharacterClass: (node, state) => {
+    const tester = getTester(node, state.flags);
+    return literal('character class', tester, node.negate);
+  },
+
+  CharacterSet: (node, state) => {
+    const tester = getTester(node, state.flags);
+    const desc = getCharSetDesc(node);
+    if (node.kind === 'any') {
+      // I need to push negate back into the testers?
+      return literal(desc, tester);
+    } else {
+      return literal(node.negate ? desc.toUpperCase() : desc, tester, node.negate);
+    }
+  },
+
+  Quantifier: (node, state, visit) => {
+    const { element, min, max, greedy } = node;
+    // See https://github.com/mysticatea/regexpp/issues/21
+    if (min > max) {
+      throw new Error('numbers out of order in {} quantifier');
+    }
+    const qIdx = ++state.qIdx;
+    state.qIdxs.push(qIdx);
+
+    state.initialRepetitionStates[qIdx] = { min, max, context: undefined! };
+    return repeat(visit(element), qIdx, greedy);
+  },
+};
+
+export const parse = (source: string, flags = ''): Pattern => {
+  const pState: ParserState = {
+    cIdx: -1, // capture index
+    qIdx: -1, // quantifier index
+    flags: {
+      global: flags.includes('g'),
+      ignoreCase: flags.includes('i'),
+      multiline: flags.includes('m'),
+      dotAll: flags.includes('s'),
+      unicode: flags.includes('u'),
+    },
+    qIdxs: [],
+    initialRepetitionStates: [],
   };
 
-  const visitors: Visitors<UnboundMatcher> = {
-    Backreference: () => {
-      throw new Error('Regex backreferences not implemented');
-    },
-    Assertion: (node) => {
-      if (node.kind === 'lookahead') {
-        throw new Error('Regex lookahead not implemented');
-      } else if (node.kind === 'lookbehind') {
-        throw new Error('Regex lookbehind unsupported');
-      } else if (node.kind === 'word') {
-        throw new Error('Regex word boundary assertions not implemented');
-      } else {
-        throw new Error('Regex edge assertions not implemented');
-      }
-    },
-    Alternative: (node, visit) => {
-      return node.elements.map(visit).reduce(compose, identity);
-    },
-    CapturingGroup: (node, visit) => {
-      if (typeof node.name === 'string') {
-        throw new Error('Regex named capturing groups not implemented');
-      }
-      return capture(++idx, visitExpression(node.alternatives, visit));
-    },
-    Pattern: (node, visit) => {
-      return expression([
-        compose(
-          // Allow the expression to seek forwards through the input for a match
-          // identity,
-          repeat(unmatched(), false),
-          // Evaluate pattern capturing to group 0
-          capture(++idx, visitExpression(node.alternatives, visit)),
-        ),
-      ]);
-    },
-    Character: (node) => {
-      return literal(String.fromCharCode(node.value), (c) => c === node.value);
-    },
-    CharacterClass: (node) => {
-      throw new Error('WIP');
-    },
-    CharacterSet: (node) => {
-      if (node.kind === 'any') {
-        return dotAll ? literal('.', testers.any) : literal('.', testers.newline, true);
-      } else if (node.kind === 'property') {
-        throw new Error('Regex unicode property escapes unsupported');
-      } else {
-        const desc = literalNames[node.kind];
-        return literal(node.negate ? desc.toUpperCase() : desc, testers[node.kind], node.negate);
-      }
-    },
-    Quantifier: (node, visit) => {
-      return repeat(visit(node.element), node.greedy, node.min, node.max);
-    },
-  };
+  if (pState.flags.unicode) {
+    throw new Error('Regex u flag is unsupported');
+  }
 
   const parser = new Parser();
   parser.parseFlags(flags); // for validation
   const ast = parser.parsePattern(source);
-  const seq = visit(ast, visitors);
+  const seq = visit(ast, pState, visitors);
 
-  const matcher = seq(term(() => (global ? result : null), idx + 1));
-  const result = matcher.match({
+  const state = {
     result: null,
     captures: {
       stack: emptyStack,
       list: emptyStack,
     },
-  }) as ExpressionResult;
+    repetitionStates: pState.initialRepetitionStates.reduce(
+      (tree, state, i) => tree.insert(i, state),
+      createTree<number, RepetitionState>((a, b) => a - b),
+    ),
+  };
+
+  // Bind `next` arguments. The final `next` value is the terminal state.
+  const matcher = seq(
+    term(() => (pState.flags.global ? result : null), pState.cIdx + 1),
+  ) as Width0Matcher;
+
+  // TODO is this line in the wrong place?
+  const result = matcher.match(state, {}) as ExpressionResult;
 
   return {
-    // Bind `next` arguments. The final `next` value is the terminal state.
     expr: result,
     source,
     flags,
-    global,
-    ignoreCase,
-    multiline,
-    dotAll,
+    ...pState.flags,
   };
 };

@@ -1,15 +1,26 @@
 import { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
+import { ImmutableTree } from './rbt';
 
 export { Stack };
 
-export type Pattern = {
-  expr: ExpressionResult;
-  source: string;
-  flags: string;
+export type Flags = {
   global: boolean;
   ignoreCase: boolean;
   multiline: boolean;
   dotAll: boolean;
+  unicode: boolean;
+};
+
+export type Pattern = Flags & {
+  expr: ExpressionResult;
+  source: string;
+  flags: string;
+};
+
+export type RepetitionState = {
+  min: number;
+  max: number;
+  context: Record<never, never>;
 };
 
 export type MatchState = {
@@ -18,6 +29,7 @@ export type MatchState = {
     stack: Stack<Capture>;
     list: Stack<Capture>;
   };
+  repetitionStates: ImmutableTree<number, RepetitionState>;
 };
 
 export type ExpressionResult = {
@@ -41,11 +53,19 @@ export type FailureResult = null;
 
 export type Result = ContinuationResult | ExpressionResult | SuccessResult | FailureResult;
 
-export type Matcher = {
-  width: 0 | 1;
+export type Width0Matcher = {
+  width: 0;
   desc: string;
-  match(state: MatchState, chr?: string): Result;
+  match(state: MatchState, context: Record<never, never>): Result;
 };
+
+export type Width1Matcher = {
+  width: 1;
+  desc: string;
+  match(state: MatchState, chr: string): Result;
+};
+
+export type Matcher = Width0Matcher | Width1Matcher;
 
 export type UnboundMatcher = (next: Matcher) => Matcher;
 

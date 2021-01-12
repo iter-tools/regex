@@ -204,19 +204,22 @@ export class Engine {
     this.captures = [];
   }
 
-  step0(atStart: boolean, atEnd: boolean) {
+  step0(atStart: boolean, atEnd: boolean, idx: number) {
     let seq = this.root === null ? null : this.root.best;
+
+    const context: Record<never, never> = { atStart, atEnd, idx };
 
     while (seq !== null) {
       const { state } = seq;
 
+      // not sure this is still needed...
       if (state.type === 'expr' || state.type === 'success') {
         seq = state.expr !== null ? state.expr.best : seq.next;
       } else {
         const { next, state: matchState } = state;
 
         if (next.width === 0) {
-          seq = seq.replaceWith(next.match(matchState));
+          seq = seq.replaceWith(next.match(matchState, context));
         } else if (atEnd) {
           seq = seq.fail();
         } else {
