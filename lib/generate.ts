@@ -9,7 +9,7 @@ function* generate(pattern: Pattern, iterable: Iterable<string>) {
   let value, done;
 
   try {
-    ({ value, done } = engine.step0(true, peekr.done));
+    ({ value, done } = engine.step0(true, peekr.done, peekr.index));
     if (value !== null) yield* value;
 
     while (!done && !peekr.done) {
@@ -17,7 +17,7 @@ function* generate(pattern: Pattern, iterable: Iterable<string>) {
 
       peekr.advance();
 
-      ({ value, done } = engine.step0(false, peekr.done));
+      ({ value, done } = engine.step0(false, peekr.done, peekr.index));
       if (value !== null) yield* value;
     }
   } finally {
