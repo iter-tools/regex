@@ -11,7 +11,7 @@ function _flattenCapture(capture: Capture, captures: Array<string | null>) {
 }
 
 export function flattenCapture(capture: Capture, capturesLen: number): Array<string | null> {
-  const captures = new Array(capturesLen).fill(null);
+  const captures = new Array(capturesLen).fill(undefined);
   _flattenCapture(capture, captures);
   return captures;
 }
