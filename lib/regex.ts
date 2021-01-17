@@ -27,12 +27,13 @@ const compose = (lExp: UnboundMatcher, rExp: UnboundMatcher) => {
 };
 
 const growResult = (state: MatchState, chr: string): MatchState => {
-  const { result, captures } = state;
+  const { result, captures, repetitionStates } = state;
   return captures.stack.size === 0 && result === null
     ? state
     : {
-        ...state,
         result: result + chr,
+        captures,
+        repetitionStates,
       };
 };
 
@@ -126,7 +127,7 @@ const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher
     const matcher: Width0Matcher = {
       desc: 'repeat',
       width: 0 as const,
-      match: (state, context): Result => {
+      match: (state, context): Result | null => {
         const repState = state.repetitionStates.get(key);
         const { min, max, context: prevContext } = repState;
 
@@ -140,12 +141,14 @@ const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher
           };
         } else {
           const nextRepState = {
-            min: Math.max(0, min - 1),
-            max: Math.max(0, max - 1),
+            min: min === 0 ? 0 : min - 1,
+            max: max === 0 ? 0 : max - 1,
             context,
           };
+          const { result, captures } = state;
           const nextState = {
-            ...state,
+            result,
+            captures,
             // For tree of size n we only update lg(N) nodes
             repetitionStates: state.repetitionStates.find(key).update(nextRepState),
           };
@@ -181,7 +184,7 @@ const startCapture = (idx: number): UnboundMatcher => (next) => ({
   width: 0,
   desc: 'startCapture',
   match: (state) => {
-    const { result, captures } = state;
+    const { result, captures, repetitionStates } = state;
     let { stack, list: parentList } = captures;
 
     const list = emptyStack;
@@ -201,9 +204,9 @@ const startCapture = (idx: number): UnboundMatcher => (next) => ({
       type: 'cont',
       next,
       state: {
-        ...state,
         result: result === null ? '' : result,
         captures: { stack, list },
+        repetitionStates,
       },
     };
   },
@@ -213,13 +216,12 @@ const endCapture = (): UnboundMatcher => (next) => ({
   width: 0,
   desc: 'endCapture',
   match: (state) => {
-    const { result, captures } = state;
+    const { result, captures, repetitionStates } = state;
     const { stack, list: children } = captures;
     const { start, parentList, idx } = stack.value;
     const end = result!.length;
 
     const capture = {
-      ...stack.value,
       idx,
       start: result === null ? 0 : result.length,
       end,
@@ -239,12 +241,12 @@ const endCapture = (): UnboundMatcher => (next) => ({
       type: 'cont',
       next,
       state: {
-        ...state,
         result,
         captures: {
           stack: stack.prev,
           list: list.push(capture),
         },
+        repetitionStates,
       },
     };
   },
