@@ -49,20 +49,18 @@ export type SuccessResult = {
   captures: Array<string | null>;
 };
 
-export type FailureResult = null;
-
-export type Result = ContinuationResult | ExpressionResult | SuccessResult | FailureResult;
+export type Result = ContinuationResult | ExpressionResult | SuccessResult;
 
 export type Width0Matcher = {
   width: 0;
   desc: string;
-  match(state: MatchState, context: Record<never, never>): Result;
+  match(state: MatchState, context: Record<never, never>): Result | null;
 };
 
 export type Width1Matcher = {
   width: 1;
   desc: string;
-  match(state: MatchState, chr: string): Result;
+  match(state: MatchState, chr: string): Result | null;
 };
 
 export type Matcher = Width0Matcher | Width1Matcher;

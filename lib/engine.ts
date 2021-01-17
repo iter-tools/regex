@@ -19,19 +19,62 @@ export class Sequence {
   // An expression can be distributed into a sequence,
   // so a sequence may be an expression.
   state: State;
-  expr: Expression;
+  parentExpr: Expression;
   // next, prev in more standard terminology
-  better: Sequence | null = null;
-  worse: Sequence | null = null;
+  better: Sequence | null;
+  worse: Sequence | null;
 
   constructor(state: ContinuationState, expr: Expression) {
     this.state = state;
-    this.expr = expr;
+    this.parentExpr = expr;
+    this.better = null;
+    this.worse = null;
   }
 
-  isOnly() {
-    const { worse, better } = this;
-    return worse === null && better === null;
+  maybeHoist(): Sequence {
+    const { best, isRoot, parentSeq } = this.parentExpr;
+    if (best.worse === null && !isRoot) {
+      // if we have an expression of one sequence
+      parentSeq!.state = best!.state;
+
+      if (best.state.type === 'expr') {
+        best.state.expr.parentSeq = parentSeq;
+      }
+
+      return parentSeq!;
+    } else {
+      return this;
+    }
+  }
+
+  remove(): Sequence | null {
+    const { worse, better, parentExpr } = this;
+
+    let seq: Sequence = null!;
+    let seqIsBetter = false;
+
+    if (better !== null) {
+      better!.worse = worse;
+      seq = better;
+      seqIsBetter = true;
+    } else {
+      parentExpr!.best = worse!;
+    }
+    if (worse !== null) {
+      worse!.better = better;
+      seq = worse;
+      seqIsBetter = false;
+    }
+
+    seq = seq.maybeHoist();
+
+    return seqIsBetter ? seq.next : seq;
+  }
+
+  removeWorse(): Sequence {
+    this.worse = null;
+
+    return this.maybeHoist();
   }
 
   fail(): Sequence | null {
@@ -40,65 +83,49 @@ export class Sequence {
     }
 
     let seq: Sequence = this;
-    let { expr } = seq;
-    while (seq.isOnly() && expr.parent !== null && !expr.isRoot) {
-      seq = expr.parent;
-      ({ expr } = seq);
-    }
+    let { worse, better, parentExpr } = seq;
 
-    if (expr.isRoot) {
-      return expr.terminate(null);
+    if (parentExpr.isRoot && better === null && worse === null) {
+      return parentExpr.terminate(null);
     } else {
-      const { worse, better } = seq;
-      if (better === null) {
-        expr.best = worse;
-      } else {
-        better.worse = worse;
+      const seq = this.remove();
+
+      if (seq?.state.type === 'success') {
+        return parentExpr.parentSeq!.succeed(seq.state);
       }
-      if (worse !== null) {
-        worse.better = better;
-        if (better === null && worse.state.type === 'success') {
-          return worse.expr.parent!.succeed(worse.state);
-        }
-      }
-      return seq.next;
+
+      return seq;
     }
   }
 
   succeed(successState: SuccessState): Sequence | null {
-    const { worse } = this;
-
     let seq: Sequence = this;
-    let { expr } = seq;
-    while (seq.better === null && expr.parent !== null && !expr.isRoot) {
-      seq = expr.parent;
-      ({ expr } = seq);
+    let { parentExpr } = seq;
+    while (seq.better === null && parentExpr.parentSeq !== null && !parentExpr.isRoot) {
+      seq = parentExpr.parentSeq;
+      ({ parentExpr } = seq);
     }
 
-    // make the GC's life a little easier
-    if (worse !== null) worse.better = null;
+    seq.state = successState;
 
     // stop matching against any less preferable alternate sequences
-    seq.worse = null;
-    seq.state = successState;
+    seq = seq.removeWorse();
 
     // Fixup the reference which we bound too early
     if (successState.expr !== null) {
-      successState.expr.parent = seq;
+      successState.expr.parentSeq = seq;
     }
 
-    if (expr.isRoot) {
-      return expr.terminate(successState);
+    if (parentExpr.isRoot && seq.better === null) {
+      return parentExpr.terminate(successState);
     } else {
       return seq;
     }
   }
 
   replaceWith(result: Result): Sequence | null {
-    const { engine, globalIdx } = this.expr;
-    if (result === null) {
-      return this.fail();
-    } else if (result.type === 'success') {
+    const { engine, globalIdx } = this.parentExpr;
+    if (result.type === 'success') {
       const { type, expr: _expr, captures } = result;
       const expr = _expr === null ? null : new Expression(engine, _expr, globalIdx + 1, this);
 
@@ -117,15 +144,16 @@ export class Sequence {
   }
 
   get next(): Sequence | null {
-    const { worse, expr } = this;
-    return worse !== null ? worse : expr.parent === null ? null : expr.parent.worse;
+    let seq: Sequence | null = this;
+    while (seq !== null && seq.worse === null) seq = seq.parentExpr.parentSeq;
+    return seq === null ? null : seq.worse;
   }
 }
 
 export class Expression {
   engine: Engine;
-  best: Sequence | null;
-  parent: Sequence | null;
+  best: Sequence;
+  parentSeq: Sequence | null;
   isRoot: boolean;
   globalIdx: number;
 
@@ -133,12 +161,12 @@ export class Expression {
     engine: Engine,
     expr: ExpressionResult,
     globalIdx: number,
-    parent: Sequence | null = null,
+    parentSeq: Sequence | null = null,
   ) {
     this.engine = engine;
-    this.parent = parent;
+    this.parentSeq = parentSeq;
     this.globalIdx = globalIdx;
-    this.isRoot = parent === null || parent.expr.globalIdx !== globalIdx;
+    this.isRoot = parentSeq === null || parentSeq.parentExpr.globalIdx !== globalIdx;
 
     const best = new Sequence(null as any, this);
     let prev = best;
@@ -163,7 +191,7 @@ export class Expression {
       throw new Error('Can only terminate root expressions');
     }
 
-    const seq = this.parent;
+    const seq = this.parentSeq;
 
     if (seq !== null) {
       if (seq.state.type !== 'success') {
@@ -185,7 +213,7 @@ export class Expression {
         engine.captures.push(...state.captures);
         engine.root = state.expr;
         if (state.expr !== null) {
-          state.expr.parent = null;
+          state.expr.parentSeq = null;
           return state.expr.best;
         }
       }
@@ -197,7 +225,7 @@ export class Expression {
 
 export class Engine {
   root: Expression | null;
-  captures: Array<Array<String | null>>;
+  captures: Array<Array<string | null>>;
 
   constructor(pattern: Pattern) {
     this.root = new Expression(this, pattern.expr, 0);
@@ -213,13 +241,14 @@ export class Engine {
       const { state } = seq;
 
       // not sure this is still needed...
-      if (state.type === 'expr' || state.type === 'success') {
+      if (state.type !== 'cont') {
         seq = state.expr !== null ? state.expr.best : seq.next;
       } else {
         const { next, state: matchState } = state;
 
         if (next.width === 0) {
-          seq = seq.replaceWith(next.match(matchState, context));
+          const result = next.match(matchState, context);
+          seq = result === null ? seq.fail() : seq.replaceWith(result);
         } else if (atEnd) {
           seq = seq.fail();
         } else {
@@ -245,17 +274,22 @@ export class Engine {
     let seq: Sequence | null = best;
 
     while (seq !== null) {
-      const { state } = seq;
+      const state: State = seq.state;
 
-      if (state.type === 'expr' || state.type === 'success') {
+      if (state.type !== 'cont') {
         seq = state.expr !== null ? state.expr.best : seq.next;
       } else {
         const { next, state: matchState } = state;
 
         // width must be 1 here
-        // it should be as evaluate0 should always be run first
-        seq.replaceWith(next.match(matchState, chr));
-        seq = seq.next;
+        // it should be as step0 should always be run first
+        const result = next.match(matchState, chr);
+        if (result === null) {
+          seq = seq.fail();
+        } else {
+          seq = seq.replaceWith(result);
+          seq = seq === null ? null : seq.next;
+        }
       }
     }
   }
