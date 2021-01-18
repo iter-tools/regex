@@ -1,11 +1,10 @@
 import emptyStack from '@iter-tools/imm-stack';
-import {
+import type {
   Matcher,
   Pattern,
   Result,
   MatchState,
   UnboundMatcher,
-  ExpressionResult,
   Width0Matcher,
   Flags,
   RepetitionState,
@@ -16,241 +15,215 @@ import { Alternative } from 'regexpp/ast';
 import { code, getTester } from './literals';
 import { createTree } from './rbt';
 
-const when = (condition: boolean, value: Result) => {
-  return condition ? value : null;
-};
-
 const identity: UnboundMatcher = (next) => next;
 
 const compose = (lExp: UnboundMatcher, rExp: UnboundMatcher) => {
   return (next: Matcher) => lExp(rExp(next));
 };
 
-const growResult = (state: MatchState, chr: string): MatchState => {
-  const { result, captures, repetitionStates } = state;
-  return captures.stack.size === 0 && result === null
-    ? state
-    : {
-        result: result + chr,
-        captures,
-        repetitionStates,
-      };
+const growResult = (state: MatchState, chr: string) => {
+  const { result } = state;
+
+  // TODO I think it is safe to remove this
+  if (result !== null) {
+    state.result += chr;
+  }
 };
 
-const term = (getExpr: () => ExpressionResult | null, capturesLen: number): Matcher => ({
+const term = (global: boolean, capturesLen: number): Matcher => ({
   width: 0,
   desc: 'term',
   match: (state: MatchState) => {
-    const { result, captures } = state;
-    return result !== null
+    const { captures } = state;
+    const rootCapture = captures.list.value;
+    return rootCapture.result !== null
       ? {
           type: 'success',
-          expr: getExpr(),
-          captures: flattenCapture(captures.list.value, capturesLen),
+          global,
+          captures: flattenCapture(rootCapture, capturesLen),
         }
       : null;
   },
 });
 
-const unmatched = (): UnboundMatcher => (next: Matcher) => ({
-  width: 1,
-  desc: 'unmatched',
-  match: (state) => ({ type: 'cont', next, state }),
-});
+const unmatched = (): UnboundMatcher => (next) => {
+  const cont: Result = { type: 'cont', next };
+
+  return {
+    width: 1,
+    desc: 'unmatched',
+    match: () => cont,
+  };
+};
 
 // match a character
 const literal = (desc: string, test: (chr: number) => boolean, negate = false): UnboundMatcher => (
   next,
-) => ({
-  width: 1,
-  desc,
-  match: (state, chr: string) => {
-    return when(negate !== test(code(chr)), {
-      type: 'cont',
-      next,
-      state: growResult(state, chr),
-    });
-  },
-});
+) => {
+  const cont: Result = { type: 'cont', next };
+  return {
+    width: 1,
+    desc,
+    match: (state, chr: string) => {
+      if (negate !== test(code(chr))) {
+        growResult(state, chr);
+        return cont;
+      } else {
+        return null;
+      }
+    },
+  };
+};
 
 const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => {
-  const seqMatchers = seqs.map((seq) => seq(next));
+  const result: Result = {
+    type: 'expr',
+    expr: seqs.map((seq) => ({
+      type: 'cont',
+      next: seq(next),
+    })),
+  };
+
   return {
     width: 0,
     desc: 'expression',
-    match: (state) => {
-      return seqMatchers.length
-        ? {
-            type: 'expr',
-            expr: seqMatchers.map((next) => ({
-              type: 'cont',
-              next,
-              state,
-            })),
-          }
-        : {
-            type: 'cont',
-            next,
-            state,
-          };
-    },
+    match: () => result,
   };
 };
 
 const resetRepetitionStates = (
   idxs: Array<number>,
   initialRepetitionStates: Array<RepetitionState>,
-): UnboundMatcher => (next) => ({
-  desc: 'reset reptition state',
-  width: 0,
-  match: (state) => {
-    let { repetitionStates } = state;
-    for (const idx of idxs) {
-      repetitionStates = repetitionStates.find(idx).update(initialRepetitionStates[idx]);
-    }
+): UnboundMatcher => (next) => {
+  const cont: Result = { type: 'cont', next };
 
-    return {
-      type: 'cont',
-      next,
-      state: {
-        ...state,
-        repetitionStates,
-      },
-    };
-  },
-});
+  return {
+    desc: 'reset reptition state',
+    width: 0,
+    match: (state) => {
+      let { repetitionStates } = state;
+      for (const idx of idxs) {
+        repetitionStates = repetitionStates.find(idx).update(initialRepetitionStates[idx]);
+      }
+
+      state.repetitionStates = repetitionStates;
+
+      return cont;
+    },
+  };
+};
 
 const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher => {
   return (next) => {
-    let expMatcher: Matcher;
+    let repeatCont: Result;
+    let exprCont: Result;
+    const doneCont: Result = { type: 'cont', next };
 
     const matcher: Width0Matcher = {
       desc: 'repeat',
       width: 0 as const,
       match: (state, context): Result | null => {
-        const repState = state.repetitionStates.get(key);
-        const { min, max, context: prevContext } = repState;
+        const repStateNode = state.repetitionStates.find(key);
+        const { min, max, context: prevContext } = repStateNode.value;
 
         if (context === prevContext) {
           return null;
         } else if (max === 0) {
-          return {
-            type: 'cont',
-            next,
-            state,
-          };
+          return doneCont;
         } else {
           const nextRepState = {
             min: min === 0 ? 0 : min - 1,
             max: max === 0 ? 0 : max - 1,
             context,
           };
-          const { result, captures } = state;
-          const nextState = {
-            result,
-            captures,
-            // For tree of size n we only update lg(N) nodes
-            repetitionStates: state.repetitionStates.find(key).update(nextRepState),
-          };
+          state.repetitionStates = repStateNode.update(nextRepState);
 
           if (min > 0) {
-            return {
-              type: 'cont',
-              next: expMatcher,
-              state: nextState,
-            };
+            return repeatCont;
           } else {
-            const matchers = greedy ? [expMatcher, next] : [next, expMatcher];
-            return {
-              type: 'expr',
-              expr: matchers.map((next) => ({
-                type: 'cont',
-                next,
-                state: nextState,
-              })),
-            };
+            return exprCont;
           }
         }
       },
     };
 
-    expMatcher = exp(matcher);
+    repeatCont = { type: 'cont', next: exp(matcher) };
+    exprCont = {
+      type: 'expr',
+      expr: greedy ? [repeatCont, doneCont] : [doneCont, repeatCont],
+    };
 
     return matcher;
   };
 };
 
-const startCapture = (idx: number): UnboundMatcher => (next) => ({
-  width: 0,
-  desc: 'startCapture',
-  match: (state) => {
-    const { result, captures, repetitionStates } = state;
-    let { stack, list: parentList } = captures;
+const startCapture = (idx: number): UnboundMatcher => (next) => {
+  const cont: Result = { type: 'cont', next };
 
-    const list = emptyStack;
+  return {
+    width: 0,
+    desc: 'startCapture',
+    match: (state) => {
+      const { result, captures } = state;
+      let { stack, list: parentList } = captures;
 
-    const capture = {
-      idx,
-      start: result === null ? 0 : result.length,
-      end: null,
-      result: null,
-      parentList,
-      children: list,
-    };
+      const list = emptyStack;
 
-    stack = stack.push(capture);
+      const capture = {
+        idx,
+        start: result === null ? 0 : result.length,
+        end: null,
+        result: null,
+        parentList,
+        children: list,
+      };
 
-    return {
-      type: 'cont',
-      next,
-      state: {
-        result: result === null ? '' : result,
-        captures: { stack, list },
-        repetitionStates,
-      },
-    };
-  },
-});
+      stack = stack.push(capture);
 
-const endCapture = (): UnboundMatcher => (next) => ({
-  width: 0,
-  desc: 'endCapture',
-  match: (state) => {
-    const { result, captures, repetitionStates } = state;
-    const { stack, list: children } = captures;
-    const { start, parentList, idx } = stack.value;
-    const end = result!.length;
+      state.result = result === null ? '' : result;
+      state.captures = { stack, list };
 
-    const capture = {
-      idx,
-      start: result === null ? 0 : result.length,
-      end,
-      result: result!.slice(start!, end),
-      parentList,
-      children,
-    };
+      return cont;
+    },
+  };
+};
 
-    let list = parentList;
+const endCapture = (): UnboundMatcher => (next) => {
+  const cont: Result = { type: 'cont', next };
 
-    if (list.size && list.value.idx === capture.idx) {
-      // Subsequent matches of the same capture group overwrite
-      list = list.prev;
-    }
+  return {
+    width: 0,
+    desc: 'endCapture',
+    match: (state) => {
+      const { result, captures } = state;
+      const { stack, list: children } = captures;
+      const { start, parentList, idx } = stack.value;
+      const end = result!.length;
 
-    return {
-      type: 'cont',
-      next,
-      state: {
-        result,
-        captures: {
-          stack: stack.prev,
-          list: list.push(capture),
-        },
-        repetitionStates,
-      },
-    };
-  },
-});
+      const capture = {
+        idx,
+        start: result === null ? 0 : result.length,
+        end,
+        result: result!.slice(start!, end),
+        parentList,
+        children,
+      };
+
+      let list = parentList;
+
+      if (list.size > 0 && list.value.idx === capture.idx) {
+        // Subsequent matches of the same capture group overwrite
+        list = list.prev;
+      }
+
+      if (stack.prev.size === 0) state.result = null;
+      state.captures.stack = stack.prev;
+      state.captures.list = list.push(capture);
+
+      return cont;
+    },
+  };
+};
 
 const capture = (idx: number, exp: UnboundMatcher) => {
   return compose(startCapture(idx), compose(exp, endCapture()));
@@ -269,18 +242,16 @@ const visitExpression = (
   state: ParserState,
   visit: Visit<UnboundMatcher>,
 ) => {
-  let result: UnboundMatcher;
-
   const qIdxs = (state.qIdxs = []);
+
+  const reset = resetRepetitionStates(qIdxs, state.initialRepetitionStates);
 
   // prettier-ignore
   switch (alternatives.length) {
-      case 0: result = identity; break;
-      case 1: result = visit(alternatives[0]); break;
-      default: result = expression(alternatives.map(visit)); break;
-    }
-
-  return compose(resetRepetitionStates(qIdxs, state.initialRepetitionStates), result);
+    case 0: return identity;
+    case 1: return compose(reset, visit(alternatives[0]));
+    default: return expression(alternatives.map(alt => compose(reset, visit(alt))));
+  }
 };
 
 const visitors: Visitors<UnboundMatcher, ParserState> = {
@@ -383,7 +354,7 @@ export const parse = (source: string, flags = ''): Pattern => {
   const ast = parser.parsePattern(source);
   const seq = visit(ast, pState, visitors);
 
-  const state = {
+  const initialState = {
     result: null,
     captures: {
       stack: emptyStack,
@@ -396,15 +367,11 @@ export const parse = (source: string, flags = ''): Pattern => {
   };
 
   // Bind `next` arguments. The final `next` value is the terminal state.
-  const matcher = seq(
-    term(() => (pState.flags.global ? result : null), pState.cIdx + 1),
-  ) as Width0Matcher;
-
-  // TODO is this line in the wrong place?
-  const result = matcher.match(state, {}) as ExpressionResult;
+  const matcher = seq(term(pState.flags.global, pState.cIdx + 1)) as Width0Matcher;
 
   return {
-    expr: result,
+    matcher,
+    initialState,
     source,
     flags,
     ...pState.flags,
