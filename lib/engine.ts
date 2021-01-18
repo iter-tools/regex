@@ -5,6 +5,8 @@ import {
   ExpressionResult,
   MatchState,
   Width0Matcher,
+  W0Context,
+  Width1Matcher,
 } from './types';
 
 type ExpressionState = {
@@ -144,7 +146,7 @@ export class Sequence {
     }
   }
 
-  replaceWith(result: Result, context: Record<never, never>): Sequence | null {
+  replaceWith(result: Result, context: W0Context): Sequence | null {
     const { engine, globalIdx } = this.parentExpr;
     if (result.type === 'success') {
       const { type, global, captures } = result;
@@ -242,6 +244,8 @@ export class Expression {
           state.expr.parentSeq = null;
           return state.expr.best;
         }
+      } else {
+        engine.root = null;
       }
 
       return null;
@@ -253,21 +257,24 @@ export class Engine {
   root: Expression | null;
   matcher: Width0Matcher;
   initialMatchState: MatchState;
+  repetitionCount: number;
   captures: Array<Array<string | null>>;
 
   constructor(pattern: Pattern) {
     this.initialMatchState = pattern.initialState;
+    this.repetitionCount = pattern.initialState.repetitionStates.length;
     this.matcher = pattern.matcher;
     this.captures = [];
     this.root = null;
   }
 
-  makeRootState(context: Record<never, never>): ExpressionResult {
+  makeRootState(context: W0Context): ExpressionResult {
     return this.matcher.match(cloneMatchState(this.initialMatchState), context) as ExpressionResult;
   }
 
   step0(atStart: boolean, atEnd: boolean, idx: number) {
-    const context: Record<never, never> = { atStart, atEnd, idx };
+    const seenRepetitions = new Array(this.repetitionCount).fill(false);
+    const context: W0Context = { atStart, atEnd, idx, seenRepetitions };
 
     if (atStart) {
       this.root = new Expression(this, this.makeRootState(context), 0);
@@ -322,11 +329,11 @@ export class Engine {
 
         // width must be 1 here
         // it should be as step0 should always be run first
-        const result = next.match(matchState, chr);
+        const result = (next as Width1Matcher).match(matchState, chr, noContext);
         if (result === null) {
           seq = seq.fail();
         } else {
-          seq = seq.replaceWith(result, noContext);
+          seq = seq.replaceWith(result, noContext as any);
           seq = seq === null ? null : seq.next;
         }
       }

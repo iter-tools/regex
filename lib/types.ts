@@ -21,7 +21,6 @@ export type Pattern = Flags & {
 export type RepetitionState = {
   min: number;
   max: number;
-  context: Record<never, never>;
 };
 
 export type MatchState = {
@@ -51,18 +50,27 @@ export type SuccessResult = {
 
 export type Result = ContinuationResult | ExpressionResult | SuccessResult;
 
+export type W0Context = {
+  atStart: boolean;
+  atEnd: boolean;
+  idx: number;
+  seenRepetitions: Array<boolean>;
+};
+
 export type Width0Matcher = {
   width: 0;
   desc: string;
-  match(state: MatchState, context: Record<never, never>): Result | null;
+  match(state: MatchState, context: W0Context): Result | null;
 };
 
+export type W1Context = Record<never, never>;
 export type Width1Matcher = {
   width: 1;
   desc: string;
-  match(state: MatchState, chr: string): Result | null;
+  match(state: MatchState, chr: string, context: W1Context): Result | null;
 };
 
+export type Context = W0Context | W1Context;
 export type Matcher = Width0Matcher | Width1Matcher;
 
 export type UnboundMatcher = (next: Matcher) => Matcher;
