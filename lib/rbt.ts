@@ -10,6 +10,7 @@ export type ImmutableTree<K, V> = {
     value: V;
     update: (value: V) => ImmutableTree<K, V>;
   };
+  readonly length: number;
 };
 
 export const createTree: <K, V>(

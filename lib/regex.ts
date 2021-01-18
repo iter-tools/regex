@@ -22,12 +22,7 @@ const compose = (lExp: UnboundMatcher, rExp: UnboundMatcher) => {
 };
 
 const growResult = (state: MatchState, chr: string) => {
-  const { result } = state;
-
-  // TODO I think it is safe to remove this
-  if (result !== null) {
-    state.result += chr;
-  }
+  state.result += chr;
 };
 
 const term = (global: boolean, capturesLen: number): Matcher => ({
@@ -124,13 +119,14 @@ const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher
       width: 0 as const,
       match: (state, context): Result | null => {
         const repStateNode = state.repetitionStates.find(key);
-        const { min, max, context: prevContext } = repStateNode.value;
+        const { min, max } = repStateNode.value;
 
-        if (context === prevContext) {
+        if (context.seenRepetitions[key]) {
           return null;
         } else if (max === 0) {
           return doneCont;
         } else {
+          context.seenRepetitions[key] = true;
           const nextRepState = {
             min: min === 0 ? 0 : min - 1,
             max: max === 0 ? 0 : max - 1,
@@ -284,7 +280,7 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
 
   Pattern: (node, state, visit) => {
     const qIdx = ++state.qIdx;
-    state.initialRepetitionStates[qIdx] = { min: 0, max: Infinity, context: undefined! };
+    state.initialRepetitionStates[qIdx] = { min: 0, max: Infinity };
     return expression([
       compose(
         // Allow the expression to seek forwards through the input for a match
@@ -325,7 +321,7 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
     const qIdx = ++state.qIdx;
     state.qIdxs.push(qIdx);
 
-    state.initialRepetitionStates[qIdx] = { min, max, context: undefined! };
+    state.initialRepetitionStates[qIdx] = { min, max };
     return repeat(visit(element), qIdx, greedy);
   },
 };
