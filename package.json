@@ -2,21 +2,22 @@
   "name": "@iter-tools/regex",
   "version": "0.1.0",
   "description": "A fully streaming regular expression engine",
-  "main": "lib/index.cjs",
-  "module": "lib/index.mjs",
-  "types": "lib/index.d.ts",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "exports": {
-    "import": "./lib/index.mjs",
-    "require": "./lib/index.cjs"
+    "import": "./dist/index.mjs",
+    "require": "./dist/index.cjs"
   },
   "engines": {
     "node": ">=10.0.0"
   },
   "files": [
-    "lib/*"
+    "dist/*"
   ],
   "sideEffects": false,
   "scripts": {
+    "build": "babel -x .ts -d dist lib",
     "test": "jest",
     "verify": "npm run lint && jest --coverage && codecov",
     "format": "prettier --write '**/*.{js,md}'",
@@ -42,6 +43,8 @@
     "regexpp": "^3.1.0"
   },
   "devDependencies": {
+    "@babel/cli": "^7.12.10",
+    "@babel/core": "^7.12.10",
     "@babel/plugin-transform-modules-commonjs": "^7.12.1",
     "@babel/preset-typescript": "^7.12.7",
     "babel-jest": "^26.6.3",
