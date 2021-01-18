@@ -1,4 +1,4 @@
-import { peekerate } from 'iter-tools-es';
+import peekerate from 'iter-tools-es/methods/peekerate';
 import { apiFactory } from './api-factory';
 import { Engine } from './engine';
 

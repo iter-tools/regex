@@ -12,7 +12,8 @@ export type Flags = {
 };
 
 export type Pattern = Flags & {
-  expr: ExpressionResult;
+  matcher: Width0Matcher;
+  initialState: MatchState;
   source: string;
   flags: string;
 };
@@ -40,12 +41,11 @@ export type ExpressionResult = {
 export type ContinuationResult = {
   type: 'cont';
   next: Matcher;
-  state: MatchState;
 };
 
 export type SuccessResult = {
   type: 'success';
-  expr: ExpressionResult | null;
+  global: boolean;
   captures: Array<string | null>;
 };
 

@@ -1,4 +1,11 @@
-import { Pattern, ContinuationResult, Result, ExpressionResult } from './types';
+import {
+  Pattern,
+  ContinuationResult,
+  Result,
+  ExpressionResult,
+  MatchState,
+  Width0Matcher,
+} from './types';
 
 type ExpressionState = {
   type: 'expr';
@@ -15,17 +22,27 @@ type ContinuationState = ContinuationResult;
 
 type State = ExpressionState | ContinuationState | SuccessState;
 
+const cloneMatchState = (state: MatchState) => {
+  const { result, captures, repetitionStates } = state;
+  const { stack, list } = captures;
+  return { result, captures: { stack, list }, repetitionStates };
+};
+
+const noContext = {};
+
 export class Sequence {
   // An expression can be distributed into a sequence,
   // so a sequence may be an expression.
   state: State;
+  matchState: MatchState;
   parentExpr: Expression;
   // next, prev in more standard terminology
   better: Sequence | null;
   worse: Sequence | null;
 
-  constructor(state: ContinuationState, expr: Expression) {
+  constructor(state: ContinuationState, matchState: MatchState, expr: Expression) {
     this.state = state;
+    this.matchState = matchState;
     this.parentExpr = expr;
     this.better = null;
     this.worse = null;
@@ -35,7 +52,8 @@ export class Sequence {
     const { best, isRoot, parentSeq } = this.parentExpr;
     if (best.worse === null && !isRoot) {
       // if we have an expression of one sequence
-      parentSeq!.state = best!.state;
+      parentSeq!.state = best.state;
+      parentSeq!.matchState = best.matchState;
 
       if (best.state.type === 'expr') {
         best.state.expr.parentSeq = parentSeq;
@@ -68,10 +86,13 @@ export class Sequence {
 
     seq = seq.maybeHoist();
 
+    this.better = this.worse = null;
+
     return seqIsBetter ? seq.next : seq;
   }
 
   removeWorse(): Sequence {
+    if (this.worse !== null) this.worse.better = null;
     this.worse = null;
 
     return this.maybeHoist();
@@ -123,11 +144,14 @@ export class Sequence {
     }
   }
 
-  replaceWith(result: Result): Sequence | null {
+  replaceWith(result: Result, context: Record<never, never>): Sequence | null {
     const { engine, globalIdx } = this.parentExpr;
     if (result.type === 'success') {
-      const { type, expr: _expr, captures } = result;
-      const expr = _expr === null ? null : new Expression(engine, _expr, globalIdx + 1, this);
+      const { type, global, captures } = result;
+
+      const expr = global
+        ? new Expression(engine, engine.makeRootState(context), globalIdx + 1, this)
+        : null;
 
       return this.succeed({ type, expr, captures: [captures] });
     } else if (result.type === 'expr') {
@@ -159,7 +183,7 @@ export class Expression {
 
   constructor(
     engine: Engine,
-    expr: ExpressionResult,
+    result: ExpressionResult,
     globalIdx: number,
     parentSeq: Sequence | null = null,
   ) {
@@ -168,11 +192,13 @@ export class Expression {
     this.globalIdx = globalIdx;
     this.isRoot = parentSeq === null || parentSeq.parentExpr.globalIdx !== globalIdx;
 
-    const best = new Sequence(null as any, this);
+    const matchState = parentSeq === null ? engine.initialMatchState : parentSeq.matchState;
+
+    const best = new Sequence(null as any, matchState, this);
     let prev = best;
 
-    for (const state of expr.expr) {
-      const seq = new Sequence(state, this);
+    for (const state of result.expr) {
+      const seq = new Sequence(state, cloneMatchState(matchState), this);
       seq.better = prev;
       prev.worse = seq;
       prev = seq;
@@ -225,30 +251,42 @@ export class Expression {
 
 export class Engine {
   root: Expression | null;
+  matcher: Width0Matcher;
+  initialMatchState: MatchState;
   captures: Array<Array<string | null>>;
 
   constructor(pattern: Pattern) {
-    this.root = new Expression(this, pattern.expr, 0);
+    this.initialMatchState = pattern.initialState;
+    this.matcher = pattern.matcher;
     this.captures = [];
+    this.root = null;
+  }
+
+  makeRootState(context: Record<never, never>): ExpressionResult {
+    return this.matcher.match(cloneMatchState(this.initialMatchState), context) as ExpressionResult;
   }
 
   step0(atStart: boolean, atEnd: boolean, idx: number) {
-    let seq = this.root === null ? null : this.root.best;
-
     const context: Record<never, never> = { atStart, atEnd, idx };
 
+    if (atStart) {
+      this.root = new Expression(this, this.makeRootState(context), 0);
+    }
+
+    let seq = this.root === null ? null : this.root.best;
+
     while (seq !== null) {
-      const { state } = seq;
+      const { state, matchState } = seq;
 
       // not sure this is still needed...
       if (state.type !== 'cont') {
         seq = state.expr !== null ? state.expr.best : seq.next;
       } else {
-        const { next, state: matchState } = state;
+        const { next } = state;
 
         if (next.width === 0) {
           const result = next.match(matchState, context);
-          seq = result === null ? seq.fail() : seq.replaceWith(result);
+          seq = result === null ? seq.fail() : seq.replaceWith(result, context);
         } else if (atEnd) {
           seq = seq.fail();
         } else {
@@ -274,12 +312,13 @@ export class Engine {
     let seq: Sequence | null = best;
 
     while (seq !== null) {
-      const state: State = seq.state;
+      const { state, matchState } = seq;
 
       if (state.type !== 'cont') {
-        seq = state.expr !== null ? state.expr.best : seq.next;
+        seq = (state.expr !== null ? state.expr.best : seq.next) as Sequence | null;
       } else {
-        const { next, state: matchState } = state;
+        const { next } = state;
+        // const state = seq.matchState;
 
         // width must be 1 here
         // it should be as step0 should always be run first
@@ -287,7 +326,7 @@ export class Engine {
         if (result === null) {
           seq = seq.fail();
         } else {
-          seq = seq.replaceWith(result);
+          seq = seq.replaceWith(result, noContext);
           seq = seq === null ? null : seq.next;
         }
       }
