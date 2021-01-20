@@ -108,51 +108,60 @@ const resetRepetitionStates = (
   };
 };
 
-const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher => {
-  return (next) => {
-    // eslint-disable-next-line prefer-const
-    let repeatCont: Result;
-    // eslint-disable-next-line prefer-const
-    let exprCont: Result;
-    const doneCont: Result = { type: 'cont', next };
-
-    const matcher: Width0Matcher = {
-      desc: 'repeat',
-      width: 0 as const,
-      match: (state, context): Result | null => {
-        const repStateNode = state.repetitionStates.find(key);
-        const { min, max } = repStateNode.value;
-
-        if (context.seenRepetitions[key]) {
-          return null;
-        } else if (max === 0) {
-          return doneCont;
-        } else {
-          context.seenRepetitions[key] = true;
-          const nextRepState = {
-            min: min === 0 ? 0 : min - 1,
-            max: max === 0 ? 0 : max - 1,
-            context,
-          };
-          state.repetitionStates = repStateNode.update(nextRepState);
-
-          if (min > 0) {
-            return repeatCont;
-          } else {
-            return exprCont;
-          }
-        }
-      },
-    };
-
-    repeatCont = { type: 'cont', next: exp(matcher) };
-    exprCont = {
-      type: 'expr',
-      expr: greedy ? [repeatCont, doneCont] : [doneCont, repeatCont],
-    };
-
-    return matcher;
+const edgeAssertion = (kind: 'start' | 'end'): UnboundMatcher => (next) => {
+  const cont: Result = { type: 'cont', next };
+  return {
+    desc: kind,
+    width: 0,
+    match: (state, context) => {
+      return kind === 'start' ? (context.atStart ? cont : null) : context.atEnd ? cont : null;
+    },
   };
+};
+
+const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher => (next) => {
+  // eslint-disable-next-line prefer-const
+  let repeatCont: Result;
+  // eslint-disable-next-line prefer-const
+  let exprCont: Result;
+  const doneCont: Result = { type: 'cont', next };
+
+  const matcher: Width0Matcher = {
+    desc: 'repeat',
+    width: 0,
+    match: (state, context): Result | null => {
+      const repStateNode = state.repetitionStates.find(key);
+      const { min, max } = repStateNode.value;
+
+      if (context.seenRepetitions[key]) {
+        return null;
+      } else if (max === 0) {
+        return doneCont;
+      } else {
+        context.seenRepetitions[key] = true;
+        const nextRepState = {
+          min: min === 0 ? 0 : min - 1,
+          max: max === 0 ? 0 : max - 1,
+          context,
+        };
+        state.repetitionStates = repStateNode.update(nextRepState);
+
+        if (min > 0) {
+          return repeatCont;
+        } else {
+          return exprCont;
+        }
+      }
+    },
+  };
+
+  repeatCont = { type: 'cont', next: exp(matcher) };
+  exprCont = {
+    type: 'expr',
+    expr: greedy ? [repeatCont, doneCont] : [doneCont, repeatCont],
+  };
+
+  return matcher;
 };
 
 const startCapture = (idx: number): UnboundMatcher => (next) => {
@@ -262,7 +271,7 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
     } else if (node.kind === 'word') {
       throw new Error('Regex word boundary assertions not implemented');
     } else {
-      throw new Error('Regex edge assertions not implemented');
+      return edgeAssertion(node.kind);
     }
   },
 
