@@ -25,9 +25,8 @@ type ContinuationState = ContinuationResult;
 type State = ExpressionState | ContinuationState | SuccessState;
 
 const cloneMatchState = (state: MatchState) => {
-  const { result, captures, repetitionStates } = state;
-  const { stack, list } = captures;
-  return { result, captures: { stack, list }, repetitionStates };
+  const { result, captureStack, captureList, repetitionStates } = state;
+  return { result, captureStack, captureList, repetitionStates };
 };
 
 const noContext = {};
@@ -113,7 +112,7 @@ export class Sequence {
     } else {
       const seq = this.remove();
 
-      if (seq?.state.type === 'success') {
+      if (seq !== null && seq.state.type === 'success') {
         return parentExpr.parentSeq!.succeed(seq.state);
       }
 
@@ -273,7 +272,7 @@ export class Engine {
   }
 
   step0(atStart: boolean, atEnd: boolean, idx: number) {
-    const seenRepetitions = new Array(this.repetitionCount).fill(false);
+    const seenRepetitions = new Array(this.repetitionCount);
     const context: W0Context = { atStart, atEnd, idx, seenRepetitions };
 
     if (atStart) {
@@ -285,7 +284,6 @@ export class Engine {
     while (seq !== null) {
       const { state, matchState } = seq;
 
-      // not sure this is still needed...
       if (state.type !== 'cont') {
         seq = state.expr !== null ? state.expr.best : seq.next;
       } else {
@@ -325,7 +323,6 @@ export class Engine {
         seq = (state.expr !== null ? state.expr.best : seq.next) as Sequence | null;
       } else {
         const { next } = state;
-        // const state = seq.matchState;
 
         // width must be 1 here
         // it should be as step0 should always be run first

@@ -25,10 +25,8 @@ export type RepetitionState = {
 
 export type MatchState = {
   result: string | null;
-  captures: {
-    stack: Stack<Capture>;
-    list: Stack<Capture>;
-  };
+  captureStack: Stack<Capture>;
+  captureList: Stack<Capture>;
   repetitionStates: ImmutableTree<number, RepetitionState>;
 };
 

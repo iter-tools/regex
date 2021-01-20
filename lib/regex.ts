@@ -29,8 +29,8 @@ const term = (global: boolean, capturesLen: number): Matcher => ({
   width: 0,
   desc: 'term',
   match: (state: MatchState) => {
-    const { captures } = state;
-    const rootCapture = captures.list.value;
+    const { captureList } = state;
+    const rootCapture = captureList.value;
     return rootCapture.result !== null
       ? {
           type: 'success',
@@ -160,8 +160,7 @@ const startCapture = (idx: number): UnboundMatcher => (next) => {
     width: 0,
     desc: 'startCapture',
     match: (state) => {
-      const { result, captures } = state;
-      let { stack, list: parentList } = captures;
+      const { result, captureStack, captureList: parentList } = state;
 
       const list = emptyStack;
 
@@ -174,10 +173,9 @@ const startCapture = (idx: number): UnboundMatcher => (next) => {
         children: list,
       };
 
-      stack = stack.push(capture);
-
       state.result = result === null ? '' : result;
-      state.captures = { stack, list };
+      state.captureStack = captureStack.push(capture);
+      state.captureList = list;
 
       return cont;
     },
@@ -191,9 +189,8 @@ const endCapture = (): UnboundMatcher => (next) => {
     width: 0,
     desc: 'endCapture',
     match: (state) => {
-      const { result, captures } = state;
-      const { stack, list: children } = captures;
-      const { start, parentList, idx } = stack.value;
+      const { result, captureStack, captureList: children } = state;
+      const { start, parentList, idx } = captureStack.value;
       const end = result!.length;
 
       const capture = {
@@ -212,9 +209,9 @@ const endCapture = (): UnboundMatcher => (next) => {
         list = list.prev;
       }
 
-      if (stack.prev.size === 0) state.result = null;
-      state.captures.stack = stack.prev;
-      state.captures.list = list.push(capture);
+      if (captureStack.prev.size === 0) state.result = null;
+      state.captureStack = captureStack.prev;
+      state.captureList = list.push(capture);
 
       return cont;
     },
@@ -352,10 +349,8 @@ export const parse = (source: string, flags = ''): Pattern => {
 
   const initialState = {
     result: null,
-    captures: {
-      stack: emptyStack,
-      list: emptyStack,
-    },
+    captureStack: emptyStack,
+    captureList: emptyStack,
     repetitionStates: pState.initialRepetitionStates.reduce(
       (tree, state, i) => tree.insert(i, state),
       createTree<number, RepetitionState>((a, b) => a - b),
