@@ -21,7 +21,7 @@
     "test": "jest",
     "verify": "npm run lint && jest --coverage && codecov",
     "format": "prettier --write '**/*.{js,md}'",
-    "lint": "eslint ."
+    "lint": "eslint --ext .js,.ts ."
   },
   "husky": {
     "hooks": {
@@ -47,6 +47,8 @@
     "@babel/core": "^7.12.10",
     "@babel/plugin-transform-modules-commonjs": "^7.12.1",
     "@babel/preset-typescript": "^7.12.7",
+    "@typescript-eslint/eslint-plugin": "^4.14.0",
+    "@typescript-eslint/parser": "^4.14.0",
     "babel-jest": "^26.6.3",
     "codecov": "^3.6.1",
     "eslint": "^7.5.0",

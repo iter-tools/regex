@@ -65,7 +65,7 @@ export type W1Context = Record<never, never>;
 export type Width1Matcher = {
   width: 1;
   desc: string;
-  match(state: MatchState, chr: string, context: W1Context): Result | null;
+  match(state: MatchState, chr: string, chrCode: number, context: W1Context): Result | null;
 };
 
 export type Context = W0Context | W1Context;

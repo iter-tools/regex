@@ -1,3 +1,4 @@
+import { code } from './literals';
 import {
   Pattern,
   ContinuationResult,
@@ -7,6 +8,8 @@ import {
   Width0Matcher,
   W0Context,
   Width1Matcher,
+  W1Context,
+  Context,
 } from './types';
 
 type ExpressionState = {
@@ -29,7 +32,7 @@ const cloneMatchState = (state: MatchState) => {
   return { result, captureStack, captureList, repetitionStates };
 };
 
-const noContext = {};
+const noContext: W1Context = {};
 
 export class Sequence {
   // An expression can be distributed into a sequence,
@@ -104,8 +107,7 @@ export class Sequence {
       throw new Error('Expressions only fail when all their sequences fail');
     }
 
-    let seq: Sequence = this;
-    let { worse, better, parentExpr } = seq;
+    const { worse, better, parentExpr } = this;
 
     if (parentExpr.isRoot && better === null && worse === null) {
       return parentExpr.terminate(null);
@@ -145,13 +147,13 @@ export class Sequence {
     }
   }
 
-  replaceWith(result: Result, context: W0Context): Sequence | null {
+  replaceWith(result: Result, context: Context): Sequence | null {
     const { engine, globalIdx } = this.parentExpr;
     if (result.type === 'success') {
       const { type, global, captures } = result;
 
       const expr = global
-        ? new Expression(engine, engine.makeRootState(context), globalIdx + 1, this)
+        ? new Expression(engine, engine.makeRootState(context as W0Context), globalIdx + 1, this)
         : null;
 
       return this.succeed({ type, expr, captures: [captures] });
@@ -195,7 +197,7 @@ export class Expression {
 
     const matchState = parentSeq === null ? engine.initialMatchState : parentSeq.matchState;
 
-    const best = new Sequence(null as any, matchState, this);
+    const best = new Sequence(null!, matchState, this);
     let prev = best;
 
     for (const state of result.expr) {
@@ -326,11 +328,11 @@ export class Engine {
 
         // width must be 1 here
         // it should be as step0 should always be run first
-        const result = (next as Width1Matcher).match(matchState, chr, noContext);
+        const result = (next as Width1Matcher).match(matchState, chr, code(chr), noContext);
         if (result === null) {
           seq = seq.fail();
         } else {
-          seq = seq.replaceWith(result, noContext as any);
+          seq = seq.replaceWith(result, noContext);
           seq = seq === null ? null : seq.next;
         }
       }

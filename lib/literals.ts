@@ -2,7 +2,7 @@ import { Character, CharacterClass, CharacterClassRange, CharacterSet, Node } fr
 import { Flags } from './types';
 
 export const code = (str: string) => str.charCodeAt(0);
-export const upperValue = (c: number) => String.fromCharCode(c).toUpperCase().charCodeAt(0);
+const upperValue = (c: number) => String.fromCharCode(c).toUpperCase().charCodeAt(0);
 const inRange = (value: number, lo: number, hi: number) => value >= lo && value <= hi;
 
 const c_ = code('_');

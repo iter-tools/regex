@@ -12,7 +12,7 @@ import type {
 import { flattenCapture } from './captures';
 import { getCharSetDesc, Parser, Visit, visit, Visitors } from './ast';
 import { Alternative } from 'regexpp/ast';
-import { code, getTester } from './literals';
+import { getTester } from './literals';
 import { createTree } from './rbt';
 
 const identity: UnboundMatcher = (next) => next;
@@ -59,8 +59,8 @@ const literal = (desc: string, test: (chr: number) => boolean, negate = false): 
   return {
     width: 1,
     desc,
-    match: (state, chr: string) => {
-      if (negate !== test(code(chr))) {
+    match: (state, chr, chrCode) => {
+      if (negate !== test(chrCode)) {
         growResult(state, chr);
         return cont;
       } else {
@@ -110,7 +110,9 @@ const resetRepetitionStates = (
 
 const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher => {
   return (next) => {
+    // eslint-disable-next-line prefer-const
     let repeatCont: Result;
+    // eslint-disable-next-line prefer-const
     let exprCont: Result;
     const doneCont: Result = { type: 'cont', next };
 

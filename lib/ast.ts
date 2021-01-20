@@ -30,6 +30,7 @@ export class SimpleVisitor<R, S> {
   }
 
   public visit(node: T.Node, state: S): R {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.visitors[node.type]!(node as any, state, (node) => this.visit(node, state));
   }
 }
