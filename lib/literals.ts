@@ -95,8 +95,9 @@ export const getCharClassRangeTester = (node: CharacterClassRange, flags: Flags)
   }
 };
 
-export const getCharClassTester = (node: CharacterClass, flags: Flags): Tester => (c) => {
-  return node.elements.map((node) => getTester(node, flags)).findIndex((tester) => tester(c)) >= 0;
+export const getCharClassTester = (node: CharacterClass, flags: Flags): Tester => {
+  const testers = node.elements.map((node) => getTester(node, flags));
+  return (c) => testers.findIndex((tester) => tester(c)) >= 0;
 };
 
 export const getTester = (node: Node, flags: Flags): Tester => {

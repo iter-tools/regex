@@ -146,11 +146,7 @@ const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher
         };
         state.repetitionStates = repStateNode.update(nextRepState);
 
-        if (min > 0) {
-          return repeatCont;
-        } else {
-          return exprCont;
-        }
+        return min > 0 ? repeatCont : exprCont;
       }
     },
   };
