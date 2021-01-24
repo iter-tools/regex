@@ -13,7 +13,7 @@ export const { exec, test, execGlobal } = apiFactory(function* generate(
   let value, done;
 
   try {
-    ({ value, done } = engine.step0(true, peekr.done, peekr.index));
+    ({ value, done } = engine.step0(true, peekr.done, peekr.index, peekr.value));
     if (value !== null) yield* value;
 
     while (!done && !peekr.done) {
@@ -21,7 +21,7 @@ export const { exec, test, execGlobal } = apiFactory(function* generate(
 
       peekr.advance();
 
-      ({ value, done } = engine.step0(false, peekr.done, peekr.index));
+      ({ value, done } = engine.step0(false, peekr.done, peekr.index, peekr.value));
       if (value !== null) yield* value;
     }
   } finally {

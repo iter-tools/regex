@@ -260,6 +260,7 @@ export class Engine {
   initialMatchState: MatchState;
   repetitionCount: number;
   captures: Array<Array<string | null>>;
+  lastChr: string | null;
 
   constructor(pattern: Pattern) {
     this.initialMatchState = pattern.initialState;
@@ -267,15 +268,26 @@ export class Engine {
     this.matcher = pattern.matcher;
     this.captures = [];
     this.root = null;
+    this.lastChr = null;
   }
 
   makeRootState(context: W0Context): ExpressionResult {
     return this.matcher.match(cloneMatchState(this.initialMatchState), context) as ExpressionResult;
   }
 
-  step0(atStart: boolean, atEnd: boolean, idx: number) {
+  step0(atStart: boolean, atEnd: boolean, idx: number, nextChr: string | null = null) {
+    const { lastChr } = this;
     const seenRepetitions = new Array(this.repetitionCount);
-    const context: W0Context = { atStart, atEnd, idx, seenRepetitions };
+    const context: W0Context = {
+      atStart,
+      atEnd,
+      lastChr,
+      lastCode: lastChr ? code(lastChr) : null,
+      nextChr,
+      nextCode: nextChr ? code(nextChr) : null,
+      idx,
+      seenRepetitions,
+    };
 
     if (atStart) {
       this.root = new Expression(this, this.makeRootState(context), 0);
@@ -300,6 +312,7 @@ export class Engine {
           seq = seq.next;
         }
       }
+      this.lastChr = nextChr;
     }
 
     const { root, captures } = this;
