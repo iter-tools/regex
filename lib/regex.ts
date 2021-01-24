@@ -12,7 +12,7 @@ import type {
 import { flattenCapture } from './captures';
 import { getCharSetDesc, Parser, Visit, visit, Visitors } from './ast';
 import { Alternative } from 'regexpp/ast';
-import { getTester, testWord } from './literals';
+import { getTester, testNotNewline, testWord } from './literals';
 import { createTree } from './rbt';
 
 const identity: UnboundMatcher = (next) => next;
@@ -108,14 +108,26 @@ const resetRepetitionStates = (
   };
 };
 
-const edgeAssertion = (kind: 'start' | 'end'): UnboundMatcher => (next) => {
+const edgeAssertion = (kind: 'start' | 'end', flags: Flags): UnboundMatcher => (next) => {
   const cont: Result = { type: 'cont', next };
   return {
     desc: `assertion: at ${kind}`,
     width: 0,
-    match: (state, context) => {
-      return kind === 'start' ? (context.atStart ? cont : null) : context.atEnd ? cont : null;
-    },
+    match: flags.multiline
+      ? (state, context) => {
+          const { atStart, atEnd, lastCode, nextCode } = context;
+          return kind === 'start'
+            ? atStart || !testNotNewline(lastCode!)
+              ? cont
+              : null
+            : atEnd || !testNotNewline(nextCode!)
+            ? cont
+            : null;
+        }
+      : (state, context) => {
+          const { atStart, atEnd } = context;
+          return kind === 'start' ? (atStart ? cont : null) : atEnd ? cont : null;
+        },
   };
 };
 
@@ -273,7 +285,7 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
     throw new Error('Regex backreferences not implemented');
   },
 
-  Assertion: (node) => {
+  Assertion: (node, state) => {
     if (node.kind === 'lookahead') {
       throw new Error('Regex lookahead not implemented');
     } else if (node.kind === 'lookbehind') {
@@ -281,7 +293,7 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
     } else if (node.kind === 'word') {
       return boundaryAssertion();
     } else {
-      return edgeAssertion(node.kind);
+      return edgeAssertion(node.kind, state.flags);
     }
   },
 
