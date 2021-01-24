@@ -19,18 +19,18 @@ const cHT = code('\t');
 const cVT = code('\v');
 const cFF = code('\f');
 
-type Tester = (c: number) => boolean;
+export type Tester = (c: number) => boolean;
 
 // These definitions are mostly taken from MDN
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions/Character_Classes
 
-const testNotNewline: Tester = (c) => {
+export const testNotNewline: Tester = (c) => {
   return c !== cCR && c !== cLF && c !== 0x2028 && c !== 0x2029;
 };
-const testDigit: Tester = (c) => {
+export const testDigit: Tester = (c) => {
   return inRange(c, c0, c9);
 };
-const testSpace: Tester = (c) => {
+export const testSpace: Tester = (c) => {
   return (
     c === cSP ||
     c === cCR ||
@@ -49,13 +49,13 @@ const testSpace: Tester = (c) => {
     c === 0xfeff
   );
 };
-const testWord: Tester = (c) => {
+export const testWord: Tester = (c) => {
   return inRange(c, cA, cZ) || inRange(c, ca, cz) || inRange(c, c0, c9) || c === c_;
 };
-const testAny: Tester = () => true;
+export const testAny: Tester = () => true;
 
 // Because this is unimplemented
-const testProperty: Tester = () => false;
+export const testProperty: Tester = () => false;
 
 const testers = {
   digit: testDigit,

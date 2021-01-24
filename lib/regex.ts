@@ -12,7 +12,7 @@ import type {
 import { flattenCapture } from './captures';
 import { getCharSetDesc, Parser, Visit, visit, Visitors } from './ast';
 import { Alternative } from 'regexpp/ast';
-import { getTester } from './literals';
+import { getTester, testWord } from './literals';
 import { createTree } from './rbt';
 
 const identity: UnboundMatcher = (next) => next;
@@ -111,10 +111,24 @@ const resetRepetitionStates = (
 const edgeAssertion = (kind: 'start' | 'end'): UnboundMatcher => (next) => {
   const cont: Result = { type: 'cont', next };
   return {
-    desc: kind,
+    desc: `assertion: at ${kind}`,
     width: 0,
     match: (state, context) => {
       return kind === 'start' ? (context.atStart ? cont : null) : context.atEnd ? cont : null;
+    },
+  };
+};
+
+const boundaryAssertion = (): UnboundMatcher => (next) => {
+  const cont: Result = { type: 'cont', next };
+  return {
+    desc: 'assertion: word boundary',
+    width: 0,
+    match: (state, context) => {
+      const { atStart, atEnd, lastCode, nextCode } = context;
+      const lastIsWord = atStart ? false : testWord(lastCode!);
+      const nextIsWord = atEnd ? false : testWord(nextCode!);
+      return lastIsWord !== nextIsWord ? cont : null;
     },
   };
 };
@@ -265,7 +279,7 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
     } else if (node.kind === 'lookbehind') {
       throw new Error('Regex lookbehind unsupported');
     } else if (node.kind === 'word') {
-      throw new Error('Regex word boundary assertions not implemented');
+      return boundaryAssertion();
     } else {
       return edgeAssertion(node.kind);
     }

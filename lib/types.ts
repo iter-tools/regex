@@ -51,6 +51,10 @@ export type Result = ContinuationResult | ExpressionResult | SuccessResult;
 export type W0Context = {
   atStart: boolean;
   atEnd: boolean;
+  lastChr: string | null;
+  lastCode: number | null;
+  nextChr: string | null;
+  nextCode: number | null;
   idx: number;
   seenRepetitions: Array<boolean>;
 };
