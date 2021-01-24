@@ -53,3 +53,11 @@ export const getCharSetDesc = (node: T.CharacterSet) => {
     return literalNames[node.kind];
   }
 };
+
+export const isAnchored = (pattern: T.Pattern) =>
+  pattern.alternatives.every((alt) => {
+    if (!alt.elements.length) return false;
+    const first = alt.elements[0];
+    // If first is a group we could recurse but I don't see much point.
+    if (first.type !== 'Assertion' || first.kind !== 'start') return false;
+  });
