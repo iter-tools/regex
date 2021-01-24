@@ -10,7 +10,7 @@ import type {
   RepetitionState,
 } from './types';
 import { flattenCapture } from './captures';
-import { getCharSetDesc, Parser, Visit, visit, Visitors } from './ast';
+import { getCharSetDesc, Parser, Visit, visit, Visitors, isAnchored } from './ast';
 import { Alternative } from 'regexpp/ast';
 import { getTester, testNotNewline, testWord } from './literals';
 import { createTree } from './rbt';
@@ -311,11 +311,13 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
   Pattern: (node, state, visit) => {
     const qIdx = ++state.qIdx;
     state.initialRepetitionStates[qIdx] = { min: 0, max: Infinity };
+
     return expression([
       compose(
-        // Allow the expression to seek forwards through the input for a match
-        // identity,
-        repeat(unmatched(), qIdx, false),
+        !state.flags.multiline && isAnchored(node)
+          ? identity
+          : // Allow the expression to seek forwards through the input for a match
+            repeat(unmatched(), qIdx, false),
         // Evaluate pattern capturing to group 0
         capture(++state.cIdx, visitExpression(node.alternatives, state, visit)),
       ),
