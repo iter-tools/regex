@@ -1,19 +1,20 @@
 import emptyStack from '@iter-tools/imm-stack';
 import type {
   Matcher,
-  Pattern,
   Result,
   MatchState,
   UnboundMatcher,
   Width0Matcher,
   Flags,
   RepetitionState,
+  PatternLike,
 } from './types';
 import { flattenCapture } from './captures';
 import { getCharSetDesc, Parser, Visit, visit, Visitors, isAnchored } from './ast';
 import { Alternative } from 'regexpp/ast';
 import { getTester, testNotNewline, testWord } from './literals';
 import { createTree } from './rbt';
+import { asPattern, Pattern } from './pattern';
 
 const identity: UnboundMatcher = (next) => next;
 
@@ -358,16 +359,29 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
   },
 };
 
-export const parse = (source: string, flags = ''): Pattern => {
+export const parse = (pattern: PatternLike | string, flags?: string | undefined): Pattern => {
+  let source;
+  let _flags;
+
+  if (pattern instanceof Pattern) {
+    return pattern;
+  } else if (typeof pattern === 'string') {
+    source = pattern;
+    _flags = flags || '';
+  } else {
+    ({ source } = pattern);
+    _flags = flags !== undefined ? flags : pattern.flags || '';
+  }
+
   const pState: ParserState = {
     cIdx: -1, // capture index
     qIdx: -1, // quantifier index
     flags: {
-      global: flags.includes('g'),
-      ignoreCase: flags.includes('i'),
-      multiline: flags.includes('m'),
-      dotAll: flags.includes('s'),
-      unicode: flags.includes('u'),
+      global: _flags.includes('g'),
+      ignoreCase: _flags.includes('i'),
+      multiline: _flags.includes('m'),
+      dotAll: _flags.includes('s'),
+      unicode: _flags.includes('u'),
     },
     qIdxs: [],
     initialRepetitionStates: [],
@@ -378,7 +392,7 @@ export const parse = (source: string, flags = ''): Pattern => {
   }
 
   const parser = new Parser();
-  parser.parseFlags(flags); // for validation
+  parser.parseFlags(_flags); // for validation
   const ast = parser.parsePattern(source);
   const seq = visit(ast, pState, visitors);
 
@@ -395,11 +409,11 @@ export const parse = (source: string, flags = ''): Pattern => {
   // Bind `next` arguments. The final `next` value is the terminal state.
   const matcher = seq(term(pState.flags.global, pState.cIdx + 1)) as Width0Matcher;
 
-  return {
+  return asPattern({
     matcher,
     initialState,
     source,
-    flags,
+    flags: _flags,
     ...pState.flags,
-  };
+  });
 };

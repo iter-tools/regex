@@ -1,7 +1,14 @@
 import { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
 import { ImmutableTree } from './rbt';
 
+export type { Pattern } from './pattern';
+
 export { Stack };
+
+export type PatternLike = {
+  source: string;
+  flags?: string | undefined;
+};
 
 export type Flags = {
   global: boolean;
@@ -9,13 +16,6 @@ export type Flags = {
   multiline: boolean;
   dotAll: boolean;
   unicode: boolean;
-};
-
-export type Pattern = Flags & {
-  matcher: Width0Matcher;
-  initialState: MatchState;
-  source: string;
-  flags: string;
 };
 
 export type RepetitionState = {
