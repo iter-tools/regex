@@ -302,6 +302,10 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
     return node.elements.map(visit).reduce(compose, identity);
   },
 
+  Group: (node, state, visit) => {
+    return visitExpression(node.alternatives, state, visit);
+  },
+
   CapturingGroup: (node, state, visit) => {
     if (typeof node.name === 'string') {
       throw new Error('Regex named capturing groups not implemented');
