@@ -25,8 +25,8 @@ export const { exec, test, execGlobal } = apiFactory(async function* generate(
     if (empty) return;
 
     let peekr: Peekerator<string> = chunkPeekr.value!;
-    while (!done && !peekr.done) {
-      try {
+    try {
+      while (!done && !peekr.done) {
         engine.step1(peekr.value);
 
         peekr = peekr.advance();
@@ -46,9 +46,9 @@ export const { exec, test, execGlobal } = apiFactory(async function* generate(
         ({ value, done } = engine.step0(false, peekr.done, idx, peekr.value));
         if (value !== null) yield* value;
         idx++;
-      } finally {
-        peekr.return();
       }
+    } finally {
+      peekr.return();
     }
   } finally {
     await chunkPeekr.return();
