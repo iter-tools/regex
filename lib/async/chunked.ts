@@ -1,4 +1,6 @@
-import { peekerate, asyncPeekerate, Peekerator } from 'iter-tools-es';
+import type { Peekerator } from 'iter-tools-es';
+import asyncPeekerate from 'iter-tools-es/methods/async-peekerate';
+import peekerate from 'iter-tools-es/methods/peekerate';
 import { apiFactory } from './api-factory';
 import { Engine } from '../engine';
 import { map } from './utils';
