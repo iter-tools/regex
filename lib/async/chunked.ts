@@ -19,9 +19,7 @@ export const { exec, test, execGlobal } = apiFactory(async function* generate(
   const empty = chunkPeekr.done || chunkPeekr.value.done;
 
   try {
-    ({ value, done } = done
-      ? engine.step0(true, true, idx)
-      : engine.step0(true, empty, idx, chunkPeekr.value!.value));
+    ({ value, done } = engine.step0(true, empty, idx, chunkPeekr.value && chunkPeekr.value.value));
     if (value !== null) yield* value;
 
     if (empty) return;
