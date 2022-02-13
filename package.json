@@ -12,7 +12,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "babel -x .ts -d dist lib",
+    "build": "babel -x .ts -d dist lib && tsc ",
     "test": "jest",
     "verify": "npm run lint && jest --coverage && codecov",
     "format": "prettier --write '**/*.{js,md}'",
@@ -42,6 +42,7 @@
     "@babel/core": "^7.12.10",
     "@babel/plugin-transform-modules-commonjs": "^7.12.1",
     "@babel/preset-typescript": "^7.12.7",
+    "@macrome/generator-typescript": "github:macrome-js/generator-typescript#2586b4196a1de96a5a9e4f3e9f5879a0b630dced",
     "@typescript-eslint/eslint-plugin": "^4.14.0",
     "@typescript-eslint/parser": "^4.14.0",
     "babel-jest": "^26.6.3",
@@ -58,6 +59,7 @@
     "husky": "^4.2.5",
     "jest": "^26.2.2",
     "lint-staged": "^10.2.11",
+    "macrome": "conartist6/macrome#99ca0564d19b061e245a83f1bb9740b154c6c0ec",
     "prettier": "^2.0.5",
     "typescript": "^3.9.7"
   },
