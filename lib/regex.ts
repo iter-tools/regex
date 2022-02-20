@@ -53,84 +53,87 @@ const unmatched = (): UnboundMatcher => (next) => {
 };
 
 // match a character
-const literal = (desc: string, test: (chr: number) => boolean, negate = false): UnboundMatcher => (
-  next,
-) => {
-  const cont: Result = { type: 'cont', next };
-  return {
-    width: 1,
-    desc,
-    match: (state, chr, chrCode) => {
-      if (negate !== test(chrCode)) {
-        growResult(state, chr);
-        return cont;
-      } else {
-        return null;
-      }
-    },
-  };
-};
-
-const expression = (seqs: Array<UnboundMatcher>): UnboundMatcher => (next) => {
-  const result: Result = {
-    type: 'expr',
-    expr: seqs.map((seq) => ({
-      type: 'cont',
-      next: seq(next),
-    })),
-  };
-
-  return {
-    width: 0,
-    desc: 'expression',
-    match: () => result,
-  };
-};
-
-const resetRepetitionStates = (
-  idxs: Array<number>,
-  initialRepetitionStates: Array<RepetitionState>,
-): UnboundMatcher => (next) => {
-  const cont: Result = { type: 'cont', next };
-
-  return {
-    desc: 'reset reptition state',
-    width: 0,
-    match: (state) => {
-      let { repetitionStates } = state;
-      for (const idx of idxs) {
-        repetitionStates = repetitionStates.find(idx).update(initialRepetitionStates[idx]);
-      }
-
-      state.repetitionStates = repetitionStates;
-
-      return cont;
-    },
-  };
-};
-
-const edgeAssertion = (kind: 'start' | 'end', flags: Flags): UnboundMatcher => (next) => {
-  const cont: Result = { type: 'cont', next };
-  return {
-    desc: `assertion: at ${kind}`,
-    width: 0,
-    match: flags.multiline
-      ? (state, context) => {
-          const { atStart, atEnd, lastCode, nextCode } = context;
-          return kind === 'start'
-            ? atStart || !testNotNewline(lastCode!)
-              ? cont
-              : null
-            : atEnd || !testNotNewline(nextCode!)
-            ? cont
-            : null;
+const literal =
+  (desc: string, test: (chr: number) => boolean, negate = false): UnboundMatcher =>
+  (next) => {
+    const cont: Result = { type: 'cont', next };
+    return {
+      width: 1,
+      desc,
+      match: (state, chr, chrCode) => {
+        if (negate !== test(chrCode)) {
+          growResult(state, chr);
+          return cont;
+        } else {
+          return null;
         }
-      : (state, context) => {
-          const { atStart, atEnd } = context;
-          return kind === 'start' ? (atStart ? cont : null) : atEnd ? cont : null;
-        },
+      },
+    };
   };
-};
+
+const expression =
+  (seqs: Array<UnboundMatcher>): UnboundMatcher =>
+  (next) => {
+    const result: Result = {
+      type: 'expr',
+      expr: seqs.map((seq) => ({
+        type: 'cont',
+        next: seq(next),
+      })),
+    };
+
+    return {
+      width: 0,
+      desc: 'expression',
+      match: () => result,
+    };
+  };
+
+const resetRepetitionStates =
+  (idxs: Array<number>, initialRepetitionStates: Array<RepetitionState>): UnboundMatcher =>
+  (next) => {
+    const cont: Result = { type: 'cont', next };
+
+    return {
+      desc: 'reset reptition state',
+      width: 0,
+      match: (state) => {
+        let { repetitionStates } = state;
+        for (const idx of idxs) {
+          repetitionStates = repetitionStates.find(idx).update(initialRepetitionStates[idx]);
+        }
+
+        state.repetitionStates = repetitionStates;
+
+        return cont;
+      },
+    };
+  };
+
+const edgeAssertion =
+  (kind: 'start' | 'end', flags: Flags): UnboundMatcher =>
+  (next) => {
+    const cont: Result = { type: 'cont', next };
+    return {
+      desc: `assertion: at ${kind}`,
+      width: 0,
+      match: flags.multiline
+        ? (state, context) => {
+            const { atStart, atEnd, lastCode, nextCode } = context;
+            return kind === 'start'
+              ? atStart || !testNotNewline(lastCode!)
+                ? cont
+                : null
+              : atEnd || !testNotNewline(nextCode!)
+              ? cont
+              : null;
+          }
+        : (state, context) => {
+            const { atStart, atEnd } = context;
+            return kind === 'start' ? (atStart ? cont : null) : atEnd ? cont : null;
+          },
+    };
+  };
 
 const boundaryAssertion = (): UnboundMatcher => (next) => {
   const cont: Result = { type: 'cont', next };
@@ -146,75 +149,79 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
   };
 };
 
-const repeat = (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher => (next) => {
-  // eslint-disable-next-line prefer-const
-  let repeatCont: Result;
-  // eslint-disable-next-line prefer-const
-  let exprCont: Result;
-  const doneCont: Result = { type: 'cont', next };
+const repeat =
+  (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher =>
+  (next) => {
+    // eslint-disable-next-line prefer-const
+    let repeatCont: Result;
+    // eslint-disable-next-line prefer-const
+    let exprCont: Result;
+    const doneCont: Result = { type: 'cont', next };
 
-  const matcher: Width0Matcher = {
-    desc: 'repeat',
-    width: 0,
-    match: (state, context): Result | null => {
-      const repStateNode = state.repetitionStates.find(key);
-      const { min, max } = repStateNode.value;
+    const matcher: Width0Matcher = {
+      desc: 'repeat',
+      width: 0,
+      match: (state, context): Result | null => {
+        const repStateNode = state.repetitionStates.find(key);
+        const { min, max } = repStateNode.value;
 
-      if (context.seenRepetitions[key]) {
-        return null;
-      } else if (max === 0) {
-        return doneCont;
-      } else {
-        context.seenRepetitions[key] = true;
-        const nextRepState = {
-          min: min === 0 ? 0 : min - 1,
-          max: max === 0 ? 0 : max - 1,
-          context,
+        if (context.seenRepetitions[key]) {
+          return null;
+        } else if (max === 0) {
+          return doneCont;
+        } else {
+          context.seenRepetitions[key] = true;
+          const nextRepState = {
+            min: min === 0 ? 0 : min - 1,
+            max: max === 0 ? 0 : max - 1,
+            context,
+          };
+          state.repetitionStates = repStateNode.update(nextRepState);
+
+          return min > 0 ? repeatCont : exprCont;
+        }
+      },
+    };
+
+    repeatCont = { type: 'cont', next: exp(matcher) };
+    exprCont = {
+      type: 'expr',
+      expr: greedy ? [repeatCont, doneCont] : [doneCont, repeatCont],
+    };
+
+    return matcher;
+  };
+
+const startCapture =
+  (idx: number): UnboundMatcher =>
+  (next) => {
+    const cont: Result = { type: 'cont', next };
+
+    return {
+      width: 0,
+      desc: 'startCapture',
+      match: (state) => {
+        const { result, captureStack, captureList: parentList } = state;
+
+        const list = emptyStack;
+
+        const capture = {
+          idx,
+          start: result === null ? 0 : result.length,
+          end: null,
+          result: null,
+          parentList,
+          children: list,
         };
-        state.repetitionStates = repStateNode.update(nextRepState);
 
-        return min > 0 ? repeatCont : exprCont;
-      }
-    },
+        state.result = result === null ? '' : result;
+        state.captureStack = captureStack.push(capture);
+        state.captureList = list;
+
+        return cont;
+      },
+    };
   };
-
-  repeatCont = { type: 'cont', next: exp(matcher) };
-  exprCont = {
-    type: 'expr',
-    expr: greedy ? [repeatCont, doneCont] : [doneCont, repeatCont],
-  };
-
-  return matcher;
-};
-
-const startCapture = (idx: number): UnboundMatcher => (next) => {
-  const cont: Result = { type: 'cont', next };
-
-  return {
-    width: 0,
-    desc: 'startCapture',
-    match: (state) => {
-      const { result, captureStack, captureList: parentList } = state;
-
-      const list = emptyStack;
-
-      const capture = {
-        idx,
-        start: result === null ? 0 : result.length,
-        end: null,
-        result: null,
-        parentList,
-        children: list,
-      };
-
-      state.result = result === null ? '' : result;
-      state.captureStack = captureStack.push(capture);
-      state.captureList = list;
-
-      return cont;
-    },
-  };
-};
 
 const endCapture = (): UnboundMatcher => (next) => {
   const cont: Result = { type: 'cont', next };
