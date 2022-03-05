@@ -48,7 +48,7 @@
     "@babel/core": "^7.12.10",
     "@babel/plugin-transform-modules-commonjs": "^7.12.1",
     "@babel/preset-typescript": "^7.12.7",
-    "@macrome/generator-typescript": "github:macrome-js/generator-typescript#c5b2fb00f09a389416f0d2a8a8a6188a971dabfc",
+    "@macrome/generator-typescript": "github:macrome-js/generator-typescript#bfa73ff9f7d14403a23ec73aa7377371f81ff65e",
     "@typescript-eslint/eslint-plugin": "^4.14.0",
     "@typescript-eslint/parser": "^4.14.0",
     "babel-jest": "^26.6.3",

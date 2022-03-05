@@ -2,22 +2,40 @@ import { parse } from './regex';
 
 import { Pattern, PatternLike } from './types';
 
-export const apiFactory = <I>(
-  generate: (pattern: Pattern, iterable: I) => IterableIterator<Array<string | null>>,
-) => {
-  const exec = (pattern: string | PatternLike, iterable: I) => {
-    const step = generate(parse(pattern), iterable).next();
+interface Api<I> {
+  exec(pattern: string | PatternLike, iterable: I): null | Array<string | null>;
+  test(pattern: string | PatternLike, iterable: I): boolean;
+  execGlobal(pattern: string | PatternLike, iterable: I): Iterable<Array<string | null>>;
+}
 
-    return step.done ? null : step.value;
-  };
+type Generate<I> = (pattern: Pattern, iterable: I) => IterableIterator<Array<string | null>>;
 
-  const test = (pattern: string | PatternLike, iterable: I) => {
-    return exec(pattern, iterable) !== null;
-  };
+const { hasOwnProperty } = Object.prototype;
 
-  const execGlobal = (pattern: string | PatternLike, iterable: I) => {
-    return generate(parse(pattern), iterable);
-  };
+const bindAll = <T>(obj: T): T => {
+  for (const key in obj) {
+    if (hasOwnProperty.call(obj, key)) {
+      const fn = obj[key];
+      if (typeof fn === 'function') {
+        obj[key] = fn.bind(obj);
+      }
+    }
+  }
+  return obj;
+};
 
-  return { exec, test, execGlobal };
+export const apiFactory: <I>(generate: Generate<I>) => Api<I> = (generate) => {
+  return bindAll({
+    exec(pattern, iterable) {
+      const step = generate(parse(pattern), iterable).next();
+
+      return step.done ? null : step.value;
+    },
+    test(pattern, iterable) {
+      return this.exec(pattern, iterable) !== null;
+    },
+    execGlobal(pattern, iterable) {
+      return generate(parse(pattern), iterable);
+    },
+  });
 };
