@@ -1,20 +1,18 @@
 import emptyStack from '@iter-tools/imm-stack';
+import { Alternative, Pattern as RegexppPattern } from 'regexpp/ast';
+import type { Flags } from '../types';
 import type {
   Matcher,
   Result,
   MatchState,
   UnboundMatcher,
   Width0Matcher,
-  Flags,
   RepetitionState,
-  PatternLike,
 } from './types';
 import { flattenCapture } from './captures';
-import { getCharSetDesc, Parser, Visit, visit, Visitors, isAnchored } from './ast';
-import { Alternative } from 'regexpp/ast';
+import { getCharSetDesc, Visit, visit, Visitors, isAnchored } from './ast';
 import { getTester, testNotNewline, testWord } from './literals';
 import { createTree } from './rbt';
-import { asPattern, Pattern } from './pattern';
 
 const identity: UnboundMatcher = (next) => next;
 
@@ -370,30 +368,11 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
   },
 };
 
-export const parse = (pattern: PatternLike | string, flags?: string | undefined): Pattern => {
-  let source;
-  let _flags;
-
-  if (pattern instanceof Pattern) {
-    return pattern;
-  } else if (typeof pattern === 'string') {
-    source = pattern;
-    _flags = flags || '';
-  } else {
-    ({ source } = pattern);
-    _flags = flags !== undefined ? flags : pattern.flags || '';
-  }
-
+export const buildPatternInternal = (ast: RegexppPattern, flags: Flags) => {
   const pState: ParserState = {
     cIdx: -1, // capture index
     qIdx: -1, // quantifier index
-    flags: {
-      global: _flags.includes('g'),
-      ignoreCase: _flags.includes('i'),
-      multiline: _flags.includes('m'),
-      dotAll: _flags.includes('s'),
-      unicode: _flags.includes('u'),
-    },
+    flags,
     qIdxs: [],
     initialRepetitionStates: [],
   };
@@ -402,9 +381,6 @@ export const parse = (pattern: PatternLike | string, flags?: string | undefined)
     throw new Error('Regex u flag is unsupported');
   }
 
-  const parser = new Parser();
-  parser.parseFlags(_flags); // for validation
-  const ast = parser.parsePattern(source);
   const seq = visit(ast, pState, visitors);
 
   const initialState = {
@@ -420,11 +396,5 @@ export const parse = (pattern: PatternLike | string, flags?: string | undefined)
   // Bind `next` arguments. The final `next` value is the terminal state.
   const matcher = seq(term(pState.flags.global, pState.cIdx + 1)) as Width0Matcher;
 
-  return asPattern({
-    matcher,
-    initialState,
-    source,
-    flags: _flags,
-    ...pState.flags,
-  });
+  return { initialState, matcher };
 };

@@ -11,6 +11,7 @@ export type Pattern = {
 export declare const parse: (pattern: string, flags: string) => Pattern;
 
 export declare const exec: (pattern: string | Pattern, input: Iterable<string>) => Array<string>;
+
 export declare const test: (pattern: string | Pattern, input: Iterable<string>) => boolean;
 
 export declare const execGlobal: (

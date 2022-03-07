@@ -1,13 +1,13 @@
 import type { Peekerator } from 'iter-tools-es';
 import asyncPeekerate from 'iter-tools-es/methods/async-peekerate';
 import peekerate from 'iter-tools-es/methods/peekerate';
-import { apiFactory } from './api-factory';
-import { Engine } from '../engine';
-import { map } from './utils';
+import { AsyncApi } from './api';
+import { Engine } from '../internal/engine';
+import { map } from './internal/utils';
 
-export { parse } from '../regex';
+export { parse, Pattern } from '../pattern';
 
-export const { exec, test, execGlobal } = apiFactory(async function* generate(
+export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   pattern,
   iterable: AsyncIterable<Iterable<string>>,
 ) {

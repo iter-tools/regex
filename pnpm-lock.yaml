@@ -6,7 +6,7 @@ specifiers:
   '@babel/plugin-transform-modules-commonjs': ^7.12.1
   '@babel/preset-typescript': ^7.12.7
   '@iter-tools/imm-stack': ^1.0.0
-  '@macrome/generator-typescript': github:macrome-js/generator-typescript#bfa73ff9f7d14403a23ec73aa7377371f81ff65e
+  '@macrome/generator-typescript': github:macrome-js/generator-typescript#29751877ad702ff07920e1e04c51bd1411a6b1ee
   '@typescript-eslint/eslint-plugin': ^4.14.0
   '@typescript-eslint/parser': ^4.14.0
   babel-jest: ^26.6.3
@@ -25,7 +25,7 @@ specifiers:
   iter-tools-es: ^7.0.2
   jest: ^26.2.2
   lint-staged: ^10.2.11
-  macrome: conartist6/macrome#0967c7aa13ee9d38943e66cf48d94ff8d8a06786
+  macrome: conartist6/macrome#226df467d85a950d47f543a62f62706b105596ea
   prettier: ^2.0.5
   regexpp: ^3.1.0
   typescript: ^3.9.7
@@ -41,7 +41,7 @@ devDependencies:
   '@babel/core': 7.17.4
   '@babel/plugin-transform-modules-commonjs': 7.16.8_@babel+core@7.17.4
   '@babel/preset-typescript': 7.16.7_@babel+core@7.17.4
-  '@macrome/generator-typescript': github.com/macrome-js/generator-typescript/bfa73ff9f7d14403a23ec73aa7377371f81ff65e
+  '@macrome/generator-typescript': github.com/macrome-js/generator-typescript/29751877ad702ff07920e1e04c51bd1411a6b1ee
   '@typescript-eslint/eslint-plugin': 4.33.0_8ebb0c9e40d935b268b5a8956a416a47
   '@typescript-eslint/parser': 4.33.0_eslint@7.32.0+typescript@3.9.10
   babel-jest: 26.6.3_@babel+core@7.17.4
@@ -58,7 +58,7 @@ devDependencies:
   husky: 4.3.8
   jest: 26.6.3
   lint-staged: 10.5.4
-  macrome: github.com/conartist6/macrome/0967c7aa13ee9d38943e66cf48d94ff8d8a06786
+  macrome: github.com/conartist6/macrome/226df467d85a950d47f543a62f62706b105596ea
   prettier: 2.5.1
   typescript: 3.9.10
 
@@ -5643,8 +5643,8 @@ packages:
       object-inspect: 1.12.0
     dev: true
 
-  github.com/conartist6/macrome/0967c7aa13ee9d38943e66cf48d94ff8d8a06786:
-    resolution: {tarball: https://codeload.github.com/conartist6/macrome/tar.gz/0967c7aa13ee9d38943e66cf48d94ff8d8a06786}
+  github.com/conartist6/macrome/226df467d85a950d47f543a62f62706b105596ea:
+    resolution: {tarball: https://codeload.github.com/conartist6/macrome/tar.gz/226df467d85a950d47f543a62f62706b105596ea}
     name: macrome
     version: 0.1.0
     engines: {node: '>=12.0.0'}
@@ -5688,8 +5688,8 @@ packages:
       tslib: 2.3.1
     dev: true
 
-  github.com/macrome-js/generator-typescript/bfa73ff9f7d14403a23ec73aa7377371f81ff65e:
-    resolution: {tarball: https://codeload.github.com/macrome-js/generator-typescript/tar.gz/bfa73ff9f7d14403a23ec73aa7377371f81ff65e}
+  github.com/macrome-js/generator-typescript/29751877ad702ff07920e1e04c51bd1411a6b1ee:
+    resolution: {tarball: https://codeload.github.com/macrome-js/generator-typescript/tar.gz/29751877ad702ff07920e1e04c51bd1411a6b1ee}
     name: '@macrome/generator-typescript'
     version: 0.1.0
     engines: {node: '>=15.0.0'}
@@ -5698,6 +5698,7 @@ packages:
     dependencies:
       '@babel/core': 7.17.4
       '@babel/plugin-syntax-typescript': 7.16.7_@babel+core@7.17.4
+      '@babel/plugin-transform-modules-commonjs': 7.16.8_@babel+core@7.17.4
       '@babel/preset-typescript': 7.16.7_@babel+core@7.17.4
       '@iter-tools/queue': 1.5.2
       '@macrome/generator': github.com/macrome-js/generator/84dc41b4e85fa61668abe348175ea640ee59618f

@@ -11,7 +11,7 @@ import { test, exec, execGlobal } from '@iter-tools/regex';
 
 test('foo|bar', 'snafoo'); // true
 exec('ab(.*)', 'abcd'); // ['abcd', 'cd']
-execGlobal('a.', 'abacad'); // Iterable[[ab], [ac], [ad]]
+execGlobal('a.', 'abacad'); // Iterable[['ab'], ['ac'], ['ad']]
 ```
 
 ## Credits

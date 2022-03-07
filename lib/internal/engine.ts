@@ -1,6 +1,5 @@
 import { code } from './literals';
 import {
-  Pattern,
   ContinuationResult,
   Result,
   ExpressionResult,
@@ -11,6 +10,7 @@ import {
   W1Context,
   Context,
 } from './types';
+import { Pattern, getPatternInternal } from '../pattern';
 
 type ExpressionState = {
   type: 'expr';
@@ -263,9 +263,10 @@ export class Engine {
   lastChr: string | null;
 
   constructor(pattern: Pattern) {
-    this.initialMatchState = pattern.initialState;
-    this.repetitionCount = pattern.initialState.repetitionStates.length;
-    this.matcher = pattern.matcher;
+    const { initialState, matcher } = getPatternInternal(pattern);
+    this.initialMatchState = initialState;
+    this.repetitionCount = initialState.repetitionStates.length;
+    this.matcher = matcher;
     this.captures = [];
     this.root = null;
     this.lastChr = null;

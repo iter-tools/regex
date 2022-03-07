@@ -24,11 +24,6 @@
     "format": "prettier --write '**/*.{js,md}'",
     "lint": "eslint --ext .js,.ts ."
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "lint-staged": {
     "*.js": [
       "eslint"
@@ -48,7 +43,7 @@
     "@babel/core": "^7.12.10",
     "@babel/plugin-transform-modules-commonjs": "^7.12.1",
     "@babel/preset-typescript": "^7.12.7",
-    "@macrome/generator-typescript": "github:macrome-js/generator-typescript#bfa73ff9f7d14403a23ec73aa7377371f81ff65e",
+    "@macrome/generator-typescript": "github:macrome-js/generator-typescript#29751877ad702ff07920e1e04c51bd1411a6b1ee",
     "@typescript-eslint/eslint-plugin": "^4.14.0",
     "@typescript-eslint/parser": "^4.14.0",
     "babel-jest": "^26.6.3",
@@ -62,10 +57,9 @@
     "eslint-plugin-prettier": "^3.1.1",
     "eslint-plugin-promise": "^4.1.1",
     "eslint-plugin-standard": "^4.0.1",
-    "husky": "^4.2.5",
     "jest": "^26.2.2",
     "lint-staged": "^10.2.11",
-    "macrome": "conartist6/macrome#0967c7aa13ee9d38943e66cf48d94ff8d8a06786",
+    "macrome": "conartist6/macrome#226df467d85a950d47f543a62f62706b105596ea",
     "prettier": "^2.0.5",
     "typescript": "^3.9.7"
   },

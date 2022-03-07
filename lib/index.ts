@@ -1,10 +1,10 @@
 import peekerate from 'iter-tools-es/methods/peekerate';
-import { apiFactory } from './api-factory';
-import { Engine } from './engine';
+import { Api } from './api';
+import { Engine } from './internal/engine';
 
-export { parse } from './regex';
+export { parse, Pattern } from './pattern';
 
-export const { exec, test, execGlobal } = apiFactory(function* generate(
+export const { exec, test, execGlobal } = new Api(function* generate(
   pattern,
   iterable: Iterable<string>,
 ) {
