@@ -8,7 +8,7 @@
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
-    "./async/": "./lib/async/index.js",
+    "./async": "./lib/async/index.js",
     "./async/chunked": "./lib/async/chunked.js"
   },
   "types": "lib/index.d.ts",
@@ -18,7 +18,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "babel -x .ts -d dist lib && tsc ",
+    "build": "macrome build",
     "test": "jest",
     "verify": "npm run lint && jest --coverage && codecov",
     "format": "prettier --write '**/*.{js,md}'",
@@ -43,7 +43,7 @@
     "@babel/core": "^7.12.10",
     "@babel/plugin-transform-modules-commonjs": "^7.12.1",
     "@babel/preset-typescript": "^7.12.7",
-    "@macrome/generator-typescript": "github:macrome-js/generator-typescript#29751877ad702ff07920e1e04c51bd1411a6b1ee",
+    "@macrome/generator-typescript": "github:macrome-js/generator-typescript#31a59aea6934522799c2446ed278b4f01169d1cd",
     "@typescript-eslint/eslint-plugin": "^4.14.0",
     "@typescript-eslint/parser": "^4.14.0",
     "babel-jest": "^26.6.3",
