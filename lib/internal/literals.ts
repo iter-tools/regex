@@ -1,5 +1,5 @@
 import { Character, CharacterClass, CharacterClassRange, CharacterSet, Node } from 'regexpp/ast';
-import { Flags } from './types';
+import { Flags } from '../types';
 
 export const code = (str: string) => str.charCodeAt(0);
 const upperValue = (c: number) => String.fromCharCode(c).toUpperCase().charCodeAt(0);
