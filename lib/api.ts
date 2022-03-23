@@ -2,7 +2,7 @@ import type { PatternLike } from './types';
 
 import { parse, Pattern } from './pattern';
 
-type Generate<I> = (pattern: Pattern, iterable: I) => IterableIterator<Array<string | null>>;
+type Generate<I> = (pattern: Pattern, iterable: I) => IterableIterator<Array<string | undefined>>;
 
 const _: unique symbol = Symbol.for('_');
 
@@ -13,19 +13,22 @@ export class Api<I> {
     this[_] = { generate };
   }
 
-  exec = (pattern: string | PatternLike, iterable: I): null | Array<string | null> => {
+  exec = (pattern: string | PatternLike, iterable: I): Array<string | undefined> => {
     const { generate } = this[_];
     const step = generate(parse(pattern), iterable).next();
 
-    return step.done ? null : step.value;
+    return step.done ? [] : step.value;
   };
 
   test = (pattern: string | PatternLike, iterable: I): boolean => {
     const { exec } = this;
-    return exec(pattern, iterable) !== null;
+    return exec(pattern, iterable).length > 0;
   };
 
-  execGlobal = (pattern: string | PatternLike, iterable: I): Iterable<Array<string | null>> => {
+  execGlobal = (
+    pattern: string | PatternLike,
+    iterable: I,
+  ): Iterable<Array<string | undefined>> => {
     const { generate } = this[_];
     const pattern_ = parse(pattern);
     return {

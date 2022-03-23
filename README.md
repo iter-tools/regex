@@ -10,6 +10,7 @@ Work in progress. See issues for missing functionality.
 import { test, exec, execGlobal } from '@iter-tools/regex';
 
 test('foo|bar', 'snafoo'); // true
+exec('ab(.*)', 'a'); // [] (the empty array is returned when builtin regex would return null)
 exec('ab(.*)', 'abcd'); // ['abcd', 'cd']
 execGlobal('a.', 'abacad'); // Iterable[['ab'], ['ac'], ['ad']]
 ```

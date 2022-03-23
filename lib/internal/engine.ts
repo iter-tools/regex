@@ -321,7 +321,7 @@ export class Engine {
   matcher: Width0Matcher;
   initialMatchState: MatchState;
   repetitionCount: number;
-  captures: Array<Array<string | null>>;
+  captures: Array<Array<string | undefined>>;
   lastChr: string | null;
 
   constructor(pattern: Pattern) {
