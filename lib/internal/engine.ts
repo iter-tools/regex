@@ -20,7 +20,7 @@ type ExpressionState = {
 type SuccessState = {
   type: 'success';
   expr: Expression | null;
-  captures: Array<Array<string | null>>;
+  captures: Array<Array<string | undefined>>;
 };
 
 type ContinuationState = ContinuationResult;

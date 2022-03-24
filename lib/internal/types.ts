@@ -28,7 +28,7 @@ export type ContinuationResult = {
 export type SuccessResult = {
   type: 'success';
   global: boolean;
-  captures: Array<string | null>;
+  captures: Array<string | undefined>;
 };
 
 export type Result = ContinuationResult | ExpressionResult | SuccessResult;
