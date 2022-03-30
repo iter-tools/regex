@@ -11,4 +11,5 @@ export type Flags = {
   multiline: boolean;
   dotAll: boolean;
   unicode: boolean;
+  sticky: boolean;
 };

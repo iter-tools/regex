@@ -1,5 +1,5 @@
-import { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
-import { ImmutableTree } from './rbt';
+import type { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
+import type { ImmutableTree } from './rbt';
 
 export { Stack };
 
@@ -8,30 +8,38 @@ export type RepetitionState = {
   max: number;
 };
 
-export type MatchState = {
+export type Capture = {
+  idx: number;
+  start: number | null;
+  end: number | null;
+  result: string | null;
+  parentList: Stack<Capture>;
+  children: Stack<Capture>;
+};
+
+export type MatcherState = {
   result: string | null;
   captureStack: Stack<Capture>;
   captureList: Stack<Capture>;
   repetitionStates: ImmutableTree<number, RepetitionState>;
 };
 
-export type ExpressionResult = {
-  type: 'expr';
-  expr: Array<ContinuationResult>;
+export const exprType = Symbol('expr');
+export const successType = Symbol('success');
+export const contType = Symbol('continuation');
+
+export type ExpressionState = {
+  type: typeof exprType;
+  seqs: Array<Matcher>;
 };
 
-export type ContinuationResult = {
-  type: 'cont';
-  next: Matcher;
-};
-
-export type SuccessResult = {
-  type: 'success';
+export type SuccessState = {
+  type: typeof successType;
   global: boolean;
   captures: Array<string | undefined>;
 };
 
-export type Result = ContinuationResult | ExpressionResult | SuccessResult;
+export type State = Matcher | ExpressionState | SuccessState;
 
 export type W0Context = {
   atStart: boolean;
@@ -45,28 +53,21 @@ export type W0Context = {
 };
 
 export type Width0Matcher = {
+  type: typeof contType;
   width: 0;
   desc: string;
-  match(state: MatchState, context: W0Context): Result | null;
+  match(state: MatcherState, context: W0Context): State | null;
 };
 
 export type W1Context = Record<never, never>;
 export type Width1Matcher = {
+  type: typeof contType;
   width: 1;
   desc: string;
-  match(state: MatchState, chr: string, chrCode: number, context: W1Context): Result | null;
+  match(state: MatcherState, chr: string, chrCode: number, context: W1Context): State | null;
 };
 
 export type Context = W0Context | W1Context;
 export type Matcher = Width0Matcher | Width1Matcher;
 
 export type UnboundMatcher = (next: Matcher) => Matcher;
-
-export type Capture = {
-  idx: number;
-  start: number | null;
-  end: number | null;
-  result: string | null;
-  parentList: Stack<Capture>;
-  children: Stack<Capture>;
-};
