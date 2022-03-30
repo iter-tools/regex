@@ -18,6 +18,7 @@ export class Pattern implements Flags {
   readonly multiline!: boolean;
   readonly dotAll!: boolean;
   readonly unicode!: boolean;
+  readonly sticky!: boolean;
 
   constructor(pattern: PatternLike | string, flags?: string | undefined) {
     let source;
@@ -43,6 +44,7 @@ export class Pattern implements Flags {
       multiline: _flags.includes('m'),
       dotAll: _flags.includes('s'),
       unicode: _flags.includes('u'),
+      sticky: _flags.includes('y'),
     };
 
     this[_] = buildPatternInternal(ast, flagsObj);

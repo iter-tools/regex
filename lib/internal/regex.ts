@@ -1,13 +1,16 @@
 import emptyStack from '@iter-tools/imm-stack';
 import { Alternative, Pattern as RegexppPattern } from 'regexpp/ast';
 import type { Flags } from '../types';
-import type {
+import {
   Matcher,
-  Result,
-  MatchState,
+  State,
+  MatcherState,
   UnboundMatcher,
   Width0Matcher,
   RepetitionState,
+  exprType,
+  successType,
+  contType,
 } from './types';
 import { flattenCapture } from './captures';
 import { getCharSetDesc, Visit, visit, Visitors, isAnchored } from './ast';
@@ -20,19 +23,20 @@ const compose = (lExp: UnboundMatcher, rExp: UnboundMatcher) => {
   return (next: Matcher) => lExp(rExp(next));
 };
 
-const growResult = (state: MatchState, chr: string) => {
+const growResult = (state: MatcherState, chr: string) => {
   state.result += chr;
 };
 
 const term = (global: boolean, capturesLen: number): Matcher => ({
+  type: contType,
   width: 0,
   desc: 'term',
-  match: (state: MatchState) => {
+  match: (state: MatcherState) => {
     const { captureList } = state;
     const rootCapture = captureList.value;
     return rootCapture.result !== null
       ? {
-          type: 'success',
+          type: successType,
           global,
           captures: flattenCapture(rootCapture, capturesLen),
         }
@@ -41,58 +45,56 @@ const term = (global: boolean, capturesLen: number): Matcher => ({
 });
 
 const unmatched = (): UnboundMatcher => (next) => {
-  const cont: Result = { type: 'cont', next };
-
   return {
+    type: contType,
     width: 1,
     desc: 'unmatched',
-    match: () => cont,
+    match: () => next,
   };
 };
 
 // match a character
 const literal =
-  (desc: string, test: (chr: number) => boolean, negate = false): UnboundMatcher =>
+  (value: string, test: (chr: number) => boolean, negate = false): UnboundMatcher =>
   (next) => {
-    const cont: Result = { type: 'cont', next };
     return {
+      type: contType,
       width: 1,
-      desc,
+      desc: 'literal',
       match: (state, chr, chrCode) => {
         if (negate !== test(chrCode)) {
           growResult(state, chr);
-          return cont;
+          return next;
         } else {
           return null;
         }
       },
+      value,
     };
   };
 
 const expression =
   (seqs: Array<UnboundMatcher>): UnboundMatcher =>
   (next) => {
-    const result: Result = {
-      type: 'expr',
-      expr: seqs.map((seq) => ({
-        type: 'cont',
-        next: seq(next),
-      })),
+    const result: State = {
+      type: exprType,
+      seqs: seqs.map((seq) => seq(next)),
     };
 
     return {
+      type: contType,
       width: 0,
       desc: 'expression',
       match: () => result,
+      seqs,
     };
   };
 
 const resetRepetitionStates =
   (idxs: Array<number>, initialRepetitionStates: Array<RepetitionState>): UnboundMatcher =>
   (next) => {
-    const cont: Result = { type: 'cont', next };
-
     return {
+      type: contType,
       desc: 'reset reptition state',
       width: 0,
       match: (state) => {
@@ -103,7 +105,7 @@ const resetRepetitionStates =
 
         state.repetitionStates = repetitionStates;
 
-        return cont;
+        return next;
       },
     };
   };
@@ -111,38 +113,39 @@ const resetRepetitionStates =
 const edgeAssertion =
   (kind: 'start' | 'end', flags: Flags): UnboundMatcher =>
   (next) => {
-    const cont: Result = { type: 'cont', next };
     return {
-      desc: `assertion: at ${kind}`,
+      type: contType,
+      desc: 'edgeAssertion',
       width: 0,
       match: flags.multiline
         ? (state, context) => {
             const { atStart, atEnd, lastCode, nextCode } = context;
             return kind === 'start'
               ? atStart || !testNotNewline(lastCode!)
-                ? cont
+                ? next
                 : null
               : atEnd || !testNotNewline(nextCode!)
-              ? cont
+              ? next
               : null;
           }
         : (state, context) => {
             const { atStart, atEnd } = context;
-            return kind === 'start' ? (atStart ? cont : null) : atEnd ? cont : null;
+            return kind === 'start' ? (atStart ? next : null) : atEnd ? next : null;
           },
+      kind,
     };
   };
 
 const boundaryAssertion = (): UnboundMatcher => (next) => {
-  const cont: Result = { type: 'cont', next };
   return {
-    desc: 'assertion: word boundary',
+    type: contType,
+    desc: 'boundaryAssertion',
     width: 0,
     match: (state, context) => {
       const { atStart, atEnd, lastCode, nextCode } = context;
       const lastIsWord = atStart ? false : testWord(lastCode!);
       const nextIsWord = atEnd ? false : testWord(nextCode!);
-      return lastIsWord !== nextIsWord ? cont : null;
+      return lastIsWord !== nextIsWord ? next : null;
     },
   };
 };
@@ -150,23 +153,18 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
 const repeat =
   (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher =>
   (next) => {
-    // eslint-disable-next-line prefer-const
-    let repeatCont: Result;
-    // eslint-disable-next-line prefer-const
-    let exprCont: Result;
-    const doneCont: Result = { type: 'cont', next };
-
-    const matcher: Width0Matcher = {
+    const matcher = {
+      type: contType,
       desc: 'repeat',
       width: 0,
-      match: (state, context): Result | null => {
+      match: (state, context): State | null => {
         const repStateNode = state.repetitionStates.find(key);
         const { min, max } = repStateNode.value;
 
         if (context.seenRepetitions[key]) {
           return null;
         } else if (max === 0) {
-          return doneCont;
+          return next;
         } else {
           context.seenRepetitions[key] = true;
           const nextRepState = {
@@ -179,13 +177,16 @@ const repeat =
           return min > 0 ? repeatCont : exprCont;
         }
       },
+    } as Width0Matcher & { repeatCont: State; exprCont: State };
+
+    const repeatCont = exp(matcher);
+    const exprCont: State = {
+      type: exprType,
+      seqs: greedy ? [repeatCont, next] : [next, repeatCont],
     };
 
-    repeatCont = { type: 'cont', next: exp(matcher) };
-    exprCont = {
-      type: 'expr',
-      expr: greedy ? [repeatCont, doneCont] : [doneCont, repeatCont],
-    };
+    matcher.repeatCont = repeatCont;
+    matcher.exprCont = exprCont;
 
     return matcher;
   };
@@ -193,9 +194,8 @@ const repeat =
 const startCapture =
   (idx: number): UnboundMatcher =>
   (next) => {
-    const cont: Result = { type: 'cont', next };
-
     return {
+      type: contType,
       width: 0,
       desc: 'startCapture',
       match: (state) => {
@@ -216,15 +216,15 @@ const startCapture =
         state.captureStack = captureStack.push(capture);
         state.captureList = list;
 
-        return cont;
+        return next;
       },
+      idx,
     };
   };
 
 const endCapture = (): UnboundMatcher => (next) => {
-  const cont: Result = { type: 'cont', next };
-
   return {
+    type: contType,
     width: 0,
     desc: 'endCapture',
     match: (state) => {
@@ -252,7 +252,7 @@ const endCapture = (): UnboundMatcher => (next) => {
       state.captureStack = captureStack.prev;
       state.captureList = list.push(capture);
 
-      return cont;
+      return next;
     },
   };
 };
@@ -322,16 +322,14 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
     const qIdx = ++state.qIdx;
     state.initialRepetitionStates[qIdx] = { min: 0, max: Infinity };
 
-    return expression([
-      compose(
-        !state.flags.multiline && isAnchored(node)
-          ? identity
-          : // Allow the expression to seek forwards through the input for a match
-            repeat(unmatched(), qIdx, false),
-        // Evaluate pattern capturing to group 0
-        capture(++state.cIdx, visitExpression(node.alternatives, state, visit)),
-      ),
-    ]);
+    return compose(
+      state.flags.sticky || (!state.flags.multiline && isAnchored(node))
+        ? identity
+        : // Allow the expression to seek forwards through the input for a match
+          repeat(unmatched(), qIdx, false),
+      // Evaluate pattern capturing to group 0
+      capture(++state.cIdx, visitExpression(node.alternatives, state, visit)),
+    );
   },
 
   Character: (node) => {
