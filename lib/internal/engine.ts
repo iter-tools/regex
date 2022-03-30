@@ -96,7 +96,7 @@ export class Node {
     return node;
   }
 
-  remove(): Node {
+  remove(): void {
     const { worse, better, parent } = this;
 
     // better and worse will never both be null except at the root node
@@ -121,8 +121,6 @@ export class Node {
       // make sure better and worse will (almost) never both be null!
       parent.replaceWith(sibling);
     }
-
-    return this.worse !== null ? this.worse : this.parent;
   }
 
   removeWorse(): Node {
@@ -154,10 +152,15 @@ export class Sequence extends Node {
       parent.best = null;
       return getSeq(parent);
     } else {
-      const { parent } = this;
-      const node = this.remove();
+      this.remove();
 
-      return getSeq(node !== parent && node instanceof Match ? node.promote() : node);
+      // const node = this.worse !== null ? getSeq(this.worse) : nextSeq(this);
+      // return getSeq(this.worse !== null && this.worse instanceof Match ? this.worse.promote() : node);
+
+      if (this.worse !== null && this.worse instanceof Match) {
+        this.worse.promote();
+      }
+      return nextSeq(this);
     }
   }
 
