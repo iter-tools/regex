@@ -48,7 +48,6 @@ export type W0Context = {
   lastCode: number | null;
   nextChr: string | null;
   nextCode: number | null;
-  idx: number;
   seenRepetitions: Array<boolean>;
 };
 

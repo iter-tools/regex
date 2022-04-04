@@ -10,18 +10,23 @@ export const { exec, test, execGlobal } = new Api(function* generate(
 ) {
   const peekr = peekerate(iterable);
   const engine = new Engine(pattern);
-  let value, done;
+  let value;
+  let done = false;
+  let lastChr = null;
+  let chr = peekr.done ? null : peekr.value;
 
   try {
-    ({ value, done } = engine.step0(true, peekr.done, peekr.index, peekr.value));
+    ({ value, done } = engine.step0(lastChr, chr));
     if (value !== null) yield* value;
 
-    while (!done && !peekr.done) {
-      engine.step1(peekr.value);
+    while (!done && chr !== null) {
+      engine.step1(chr);
 
       peekr.advance();
+      lastChr = chr;
+      chr = peekr.done ? null : peekr.value;
 
-      ({ value, done } = engine.step0(false, peekr.done, peekr.index, peekr.value));
+      ({ value, done } = engine.step0(chr));
       if (value !== null) yield* value;
     }
   } finally {

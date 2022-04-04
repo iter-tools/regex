@@ -1,4 +1,3 @@
-import type { Peekerator } from 'iter-tools-es';
 import asyncPeekerate from 'iter-tools-es/methods/async-peekerate';
 import peekerate from 'iter-tools-es/methods/peekerate';
 import { AsyncApi } from './api';
@@ -7,45 +6,46 @@ import { map } from './internal/utils';
 
 export { parse, Pattern } from '../pattern';
 
+const emptyPeekr = peekerate([]);
+
 export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   pattern,
   iterable: AsyncIterable<Iterable<string>>,
 ) {
   const engine = new Engine(pattern);
   let chunkPeekr = await asyncPeekerate(map(iterable, peekerate));
-  let idx = 0;
-  let value, done;
-
-  const empty = chunkPeekr.done || chunkPeekr.value.done;
+  let peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
+  let value;
+  let done = false;
+  let chr: string | null;
+  let lastChr: string | null = null!;
 
   try {
-    ({ value, done } = engine.step0(true, empty, idx, chunkPeekr.value && chunkPeekr.value.value));
+    while (peekr.done && !chunkPeekr.done) {
+      chunkPeekr = await chunkPeekr.advance();
+      peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
+    }
+
+    chr = peekr.done ? null : peekr.value;
+
+    ({ value, done } = engine.step0(lastChr, chr));
     if (value !== null) yield* value;
 
-    if (empty) return;
-
-    let peekr: Peekerator<string> = chunkPeekr.value!;
     try {
       while (!done && !peekr.done) {
         engine.step1(peekr.value);
 
         peekr = peekr.advance();
+        lastChr = chr;
+        chr = peekr.done ? null : peekr.value;
 
-        if (peekr.done) {
+        while (peekr.done && !chunkPeekr.done) {
           chunkPeekr = await chunkPeekr.advance();
-          if (chunkPeekr.done) {
-            // there may be a final empty chunk
-            // and we want a single check for doneness
-            // so always simulate a final empty chunk
-            peekr = peekerate([]);
-          } else {
-            peekr = chunkPeekr.value;
-          }
+          peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
         }
 
-        ({ value, done } = engine.step0(false, peekr.done, idx, peekr.value));
+        ({ value, done } = engine.step0(lastChr, chr));
         if (value !== null) yield* value;
-        idx++;
       }
     } finally {
       peekr.return();

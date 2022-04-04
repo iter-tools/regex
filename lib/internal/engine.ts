@@ -293,7 +293,6 @@ export class Engine {
   matcher: Width0Matcher;
   initialMatchState: MatcherState;
   repetitionCount: number;
-  lastChr: string | null;
 
   constructor(pattern: Pattern) {
     const { initialState, matcher } = getPatternInternal(pattern);
@@ -301,14 +300,14 @@ export class Engine {
     this.initialMatchState = initialState;
     this.repetitionCount = initialState.repetitionStates.length;
     this.matcher = matcher;
-    this.lastChr = null;
 
     this.root = new Match(null!, this, pattern.global ? 0 : -1, []);
     this.root.buildSequences([matcher], initialState);
   }
 
-  step0(atStart: boolean, atEnd: boolean, idx: number, nextChr: string | null = null) {
-    const { lastChr } = this;
+  step0(lastChr: string | null, nextChr: string | null = null) {
+    const atStart = lastChr === null;
+    const atEnd = nextChr === null;
     const seenRepetitions = new Array(this.repetitionCount);
     const context: W0Context = {
       atStart,
@@ -317,7 +316,6 @@ export class Engine {
       lastCode: lastChr ? code(lastChr) : null,
       nextChr,
       nextCode: nextChr ? code(nextChr) : null,
-      idx,
       seenRepetitions,
     };
 
@@ -336,8 +334,6 @@ export class Engine {
         seq = nextSeq(seq);
       }
     }
-
-    this.lastChr = nextChr;
 
     const { root } = this;
     const { matches } = root;
