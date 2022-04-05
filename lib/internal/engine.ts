@@ -205,10 +205,18 @@ export class Sequence extends Node {
   }
 }
 
+function* childrenOf(expr: Expression) {
+  let seq = expr.best;
+  while (seq !== null) {
+    yield seq;
+    seq = seq.worse;
+  }
+}
+
 // An expression serves as the head of a linked list of sequences
 export class Expression extends Node {
   match: Match;
-  // Best may be null for pending matches
+  // The best child. Pending matches may have no children.
   best: Node | null;
 
   constructor(parent: Expression) {
@@ -236,6 +244,10 @@ export class Expression extends Node {
 
     this.best = best.worse;
     return this;
+  }
+
+  get children() {
+    return childrenOf(this);
   }
 }
 
