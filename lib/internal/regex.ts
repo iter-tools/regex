@@ -118,19 +118,23 @@ const edgeAssertion =
       desc: 'edgeAssertion',
       width: 0,
       match: flags.multiline
+        ? kind === 'start'
+          ? (state, context) => {
+              const { lastCode } = context;
+              return lastCode === null || !testNotNewline(lastCode!) ? next : null;
+            }
+          : (state, context) => {
+              const { nextCode } = context;
+              return nextCode === null || !testNotNewline(nextCode!) ? next : null;
+            }
+        : kind === 'start'
         ? (state, context) => {
-            const { atStart, atEnd, lastCode, nextCode } = context;
-            return kind === 'start'
-              ? atStart || !testNotNewline(lastCode!)
-                ? next
-                : null
-              : atEnd || !testNotNewline(nextCode!)
-              ? next
-              : null;
+            const { lastCode } = context;
+            return lastCode === null ? next : null;
           }
         : (state, context) => {
-            const { atStart, atEnd } = context;
-            return kind === 'start' ? (atStart ? next : null) : atEnd ? next : null;
+            const { nextCode } = context;
+            return nextCode === null ? next : null;
           },
       kind,
     };
@@ -142,9 +146,9 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
     desc: 'boundaryAssertion',
     width: 0,
     match: (state, context) => {
-      const { atStart, atEnd, lastCode, nextCode } = context;
-      const lastIsWord = atStart ? false : testWord(lastCode!);
-      const nextIsWord = atEnd ? false : testWord(nextCode!);
+      const { lastCode, nextCode } = context;
+      const lastIsWord = lastCode === null ? false : testWord(lastCode!);
+      const nextIsWord = nextCode === null ? false : testWord(nextCode!);
       return lastIsWord !== nextIsWord ? next : null;
     },
   };

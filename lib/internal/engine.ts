@@ -318,16 +318,12 @@ export class Engine {
   }
 
   step0(lastChr: string | null, nextChr: string | null = null) {
-    const atStart = lastChr === null;
-    const atEnd = nextChr === null;
     const seenRepetitions = new Array(this.repetitionCount);
     const context: W0Context = {
-      atStart,
-      atEnd,
       lastChr,
-      lastCode: lastChr ? code(lastChr) : null,
+      lastCode: lastChr === null ? null : code(lastChr),
       nextChr,
-      nextCode: nextChr ? code(nextChr) : null,
+      nextCode: nextChr === null ? null : code(nextChr),
       seenRepetitions,
     };
 
@@ -339,7 +335,7 @@ export class Engine {
       if (next.width === 0) {
         // Match against any number of chained width 0 states
         seq = seq.apply(next.match(mutableState, context));
-      } else if (atEnd) {
+      } else if (nextChr === null) {
         // the input ended before the pattern succeeded
         seq = seq.fail();
       } else {
