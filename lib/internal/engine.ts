@@ -317,7 +317,7 @@ export class Engine {
     this.root.buildSequences([matcher], initialState);
   }
 
-  step0(lastChr: string | null, nextChr: string | null = null) {
+  step0(lastChr: string | null, nextChr: string | null) {
     const seenRepetitions = new Array(this.repetitionCount);
     const context: W0Context = {
       lastChr,

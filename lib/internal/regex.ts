@@ -121,11 +121,11 @@ const edgeAssertion =
         ? kind === 'start'
           ? (state, context) => {
               const { lastCode } = context;
-              return lastCode === null || !testNotNewline(lastCode!) ? next : null;
+              return lastCode === null || !testNotNewline(lastCode) ? next : null;
             }
           : (state, context) => {
               const { nextCode } = context;
-              return nextCode === null || !testNotNewline(nextCode!) ? next : null;
+              return nextCode === null || !testNotNewline(nextCode) ? next : null;
             }
         : kind === 'start'
         ? (state, context) => {
@@ -147,8 +147,8 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
     width: 0,
     match: (state, context) => {
       const { lastCode, nextCode } = context;
-      const lastIsWord = lastCode === null ? false : testWord(lastCode!);
-      const nextIsWord = nextCode === null ? false : testWord(nextCode!);
+      const lastIsWord = lastCode === null ? false : testWord(lastCode);
+      const nextIsWord = nextCode === null ? false : testWord(nextCode);
       return lastIsWord !== nextIsWord ? next : null;
     },
   };

@@ -26,7 +26,7 @@ export const { exec, test, execGlobal } = new Api(function* generate(
       lastChr = chr;
       chr = peekr.done ? null : peekr.value;
 
-      ({ value, done } = engine.step0(chr));
+      ({ value, done } = engine.step0(lastChr, chr));
       if (value !== null) yield* value;
     }
   } finally {
