@@ -30,7 +30,8 @@ const growResult = (state: MatcherState, chr: string) => {
 const term = (global: boolean, capturesLen: number): Matcher => ({
   type: contType,
   width: 0,
-  desc: 'term',
+  name: 'term',
+  next: null,
   match: (state: MatcherState) => {
     const { captureList } = state;
     const rootCapture = captureList.value;
@@ -48,7 +49,8 @@ const unmatched = (): UnboundMatcher => (next) => {
   return {
     type: contType,
     width: 1,
-    desc: 'unmatched',
+    name: 'unmatched',
+    next,
     match: () => next,
   };
 };
@@ -60,7 +62,8 @@ const literal =
     return {
       type: contType,
       width: 1,
-      desc: 'literal',
+      name: 'literal',
+      next,
       match: (state, chr, chrCode) => {
         if (negate !== test(chrCode)) {
           growResult(state, chr);
@@ -74,19 +77,18 @@ const literal =
   };
 
 const expression =
-  (seqs: Array<UnboundMatcher>): UnboundMatcher =>
+  (matchers: Array<UnboundMatcher>): UnboundMatcher =>
   (next) => {
-    const result: State = {
-      type: exprType,
-      seqs: seqs.map((seq) => seq(next)),
-    };
+    const boundMatchers = matchers.map((matcher) => matcher(next));
+    const result: State = { type: exprType, seqs: boundMatchers };
 
     return {
       type: contType,
       width: 0,
-      desc: 'expression',
+      name: 'expression',
+      next,
       match: () => result,
-      seqs,
+      matchers: boundMatchers,
     };
   };
 
@@ -95,8 +97,9 @@ const resetRepetitionStates =
   (next) => {
     return {
       type: contType,
-      desc: 'reset reptition state',
+      name: 'resetRepetitionStates',
       width: 0,
+      next,
       match: (state) => {
         let { repetitionStates } = state;
         for (const idx of idxs) {
@@ -115,8 +118,9 @@ const edgeAssertion =
   (next) => {
     return {
       type: contType,
-      desc: 'edgeAssertion',
+      name: 'edgeAssertion',
       width: 0,
+      next,
       match: flags.multiline
         ? kind === 'start'
           ? (state, context) => {
@@ -143,8 +147,9 @@ const edgeAssertion =
 const boundaryAssertion = (): UnboundMatcher => (next) => {
   return {
     type: contType,
-    desc: 'boundaryAssertion',
+    name: 'boundaryAssertion',
     width: 0,
+    next,
     match: (state, context) => {
       const { lastCode, nextCode } = context;
       const lastIsWord = lastCode === null ? false : testWord(lastCode);
@@ -159,8 +164,9 @@ const repeat =
   (next) => {
     const matcher = {
       type: contType,
-      desc: 'repeat',
+      name: 'repeat',
       width: 0,
+      next,
       match: (state, context): State | null => {
         const repStateNode = state.repetitionStates.find(key);
         const { min, max } = repStateNode.value;
@@ -201,7 +207,8 @@ const startCapture =
     return {
       type: contType,
       width: 0,
-      desc: 'startCapture',
+      name: 'startCapture',
+      next,
       match: (state) => {
         const { result, captureStack, captureList: parentList } = state;
 
@@ -230,7 +237,8 @@ const endCapture = (): UnboundMatcher => (next) => {
   return {
     type: contType,
     width: 0,
-    desc: 'endCapture',
+    name: 'endCapture',
+    next,
     match: (state) => {
       const { result, captureStack, captureList: children } = state;
       const { start, parentList, idx } = captureStack.value;
@@ -337,22 +345,23 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
   },
 
   Character: (node) => {
-    return literal(String.fromCharCode(node.value), (c) => c === node.value);
+    return literal(node.raw, (c) => c === node.value);
   },
 
   CharacterClass: (node, state) => {
     const tester = getTester(node, state.flags);
-    return literal('character class', tester, node.negate);
+
+    return literal(node.raw, tester, node.negate);
   },
 
   CharacterSet: (node, state) => {
     const tester = getTester(node, state.flags);
-    const desc = getCharSetDesc(node);
+    const name = getCharSetDesc(node);
     if (node.kind === 'any') {
       // I need to push negate back into the testers?
-      return literal(desc, tester);
+      return literal(name, tester);
     } else {
-      return literal(node.negate ? desc.toUpperCase() : desc, tester, node.negate);
+      return literal(node.negate ? name.toUpperCase() : name, tester, node.negate);
     }
   },
 

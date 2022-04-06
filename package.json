@@ -8,6 +8,7 @@
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
+    "./internal/debug": "./lib/internal/debug.js",
     "./internal/engine": "./lib/internal/engine.js",
     "./async": "./lib/async/index.js",
     "./async/chunked": "./lib/async/chunked.js"

@@ -52,7 +52,8 @@ export type W0Context = {
 export type Width0Matcher = {
   type: typeof contType;
   width: 0;
-  desc: string;
+  name: string;
+  next: null | Matcher | Array<Matcher>;
   match(state: MatcherState, context: W0Context): State | null;
 };
 
@@ -60,7 +61,8 @@ export type W1Context = Record<never, never>;
 export type Width1Matcher = {
   type: typeof contType;
   width: 1;
-  desc: string;
+  name: string;
+  next: null | Matcher;
   match(state: MatcherState, chr: string, chrCode: number, context: W1Context): State | null;
 };
 
