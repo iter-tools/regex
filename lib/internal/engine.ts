@@ -310,6 +310,7 @@ export class Engine {
   width: number;
   lastChr: string | null;
   chr: string | null;
+  starved: boolean;
 
   constructor(pattern: Pattern) {
     const { initialState, matcher } = getPatternInternal(pattern);
@@ -325,6 +326,7 @@ export class Engine {
     this.width = 0;
     this.lastChr = undefined!;
     this.chr = undefined!;
+    this.starved = true;
   }
 
   get done() {
@@ -337,10 +339,18 @@ export class Engine {
     if (chr !== null) {
       this.index++;
     }
+    if (this.lastChr !== undefined) {
+      this.starved = false;
+    }
   }
 
   step0() {
-    const { lastChr, chr } = this;
+    const { lastChr, chr, starved } = this;
+
+    if (starved) {
+      throw new Error('step0 called without feeding new input');
+    }
+
     const seenRepetitions = new Array(this.repetitionCount);
     const context: W0Context = {
       lastChr,
@@ -404,5 +414,6 @@ export class Engine {
     }
 
     this.width = 0;
+    this.starved = true;
   }
 }
