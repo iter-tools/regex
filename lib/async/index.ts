@@ -12,17 +12,13 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   const engine = new Engine(pattern);
 
   try {
-    let value;
-    let done = false;
-
     engine.feed(null);
 
-    while (!done && !peekr.done) {
+    while (!engine.done && !peekr.done) {
       if (engine.width === 0) {
         engine.feed(peekr.value);
 
-        ({ value, done } = engine.step0());
-        yield* value;
+        yield* engine.step0();
       } else {
         engine.step1();
 
@@ -32,8 +28,7 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
 
     engine.feed(null);
 
-    ({ value, done } = engine.step0());
-    yield* value;
+    yield* engine.step0();
   } finally {
     await peekr.return();
   }

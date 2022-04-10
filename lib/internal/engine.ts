@@ -327,10 +327,16 @@ export class Engine {
     this.chr = undefined!;
   }
 
+  get done() {
+    return this.root.best === null;
+  }
+
   feed(chr: string | null) {
     this.lastChr = this.chr;
     this.chr = chr;
-    this.index++;
+    if (chr !== null) {
+      this.index++;
+    }
   }
 
   step0() {
@@ -363,13 +369,17 @@ export class Engine {
     const { root } = this;
     const { matches } = root;
 
-    this.width = 1;
+    if (chr === null) {
+      root.best = null;
+    } else {
+      this.width = 1;
+    }
 
     if (matches.length > 0) {
       root.matches = [];
-      return { value: matches, done: root.best === null };
+      return matches;
     } else {
-      return { value: noMatches, done: root.best === null };
+      return noMatches;
     }
   }
 

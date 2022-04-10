@@ -15,8 +15,6 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   const engine = new Engine(pattern);
   let chunkPeekr = await asyncPeekerate(map(iterable, peekerate));
   let peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
-  let value;
-  let done = false;
 
   try {
     engine.feed(null);
@@ -27,12 +25,11 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
     }
 
     try {
-      while (!done && !peekr.done) {
+      while (!engine.done && !peekr.done) {
         if (engine.width === 0) {
           engine.feed(peekr.value);
 
-          ({ value, done } = engine.step0());
-          yield* value;
+          yield* engine.step0();
         } else {
           engine.step1();
 
@@ -47,8 +44,7 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
 
       engine.feed(null);
 
-      ({ value, done } = engine.step0());
-      yield* value;
+      yield* engine.step0();
     } finally {
       peekr.return();
     }
