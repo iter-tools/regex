@@ -19,7 +19,6 @@ export const debugPrint = (matcher: any): string | null => {
         str += m.kind === 'start' ? '^' : '$';
         break;
       case 'expression':
-        debugger;
         str += `(${m.matchers.map((m: any) => debugPrint(m)).join('|')})`;
         break;
       case 'repeat':
