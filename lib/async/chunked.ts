@@ -26,19 +26,18 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
 
     try {
       while (!engine.done && !peekr.done) {
-        if (engine.width === 0) {
+        if (engine.starved) {
           engine.feed(peekr.value);
-
-          yield* engine.step0();
-        } else {
-          engine.step1();
-
           peekr = peekr.advance();
 
           while (peekr.done && !chunkPeekr.done) {
             chunkPeekr = await chunkPeekr.advance();
             peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
           }
+        } else if (engine.width === 0) {
+          yield* engine.step0();
+        } else {
+          engine.step1();
         }
       }
 

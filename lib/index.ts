@@ -15,15 +15,14 @@ export const { exec, test, execGlobal } = new Api(function* generate(
     engine.feed(null);
 
     while (!engine.done && !peekr.done) {
-      if (engine.width === 0) {
+      if (engine.starved) {
         engine.feed(peekr.value);
-
-        yield* engine.step0();
-      } else {
-        engine.step1();
-
         peekr.advance();
       }
+
+      yield* engine.step0();
+
+      engine.step1();
     }
 
     engine.feed(null);
