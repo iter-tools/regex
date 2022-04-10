@@ -10,25 +10,30 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
 ) {
   const peekr = await asyncPeekerate(iterable);
   const engine = new Engine(pattern);
-  let value;
-  let done = false;
-  let lastChr = null;
-  let chr = peekr.done ? null : peekr.value;
 
   try {
-    ({ value, done } = engine.step0(lastChr, chr));
-    if (value !== null) yield* value;
+    let value;
+    let done = false;
 
-    while (!done && chr !== null) {
-      engine.step1(chr);
+    engine.feed(null);
 
-      await peekr.advance();
-      lastChr = chr;
-      chr = peekr.done ? null : peekr.value;
+    while (!done && !peekr.done) {
+      if (engine.width === 0) {
+        engine.feed(peekr.value);
 
-      ({ value, done } = engine.step0(lastChr, chr));
-      if (value !== null) yield* value;
+        ({ value, done } = engine.step0());
+        yield* value;
+      } else {
+        engine.step1();
+
+        await peekr.advance();
+      }
     }
+
+    engine.feed(null);
+
+    ({ value, done } = engine.step0());
+    yield* value;
   } finally {
     await peekr.return();
   }

@@ -17,36 +17,38 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   let peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
   let value;
   let done = false;
-  let chr: string | null;
-  let lastChr: string | null = null!;
 
   try {
+    engine.feed(null);
+
     while (peekr.done && !chunkPeekr.done) {
       chunkPeekr = await chunkPeekr.advance();
       peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
     }
 
-    chr = peekr.done ? null : peekr.value;
-
-    ({ value, done } = engine.step0(lastChr, chr));
-    if (value !== null) yield* value;
-
     try {
       while (!done && !peekr.done) {
-        engine.step1(peekr.value);
+        if (engine.width === 0) {
+          engine.feed(peekr.value);
 
-        peekr = peekr.advance();
-        lastChr = chr;
-        chr = peekr.done ? null : peekr.value;
+          ({ value, done } = engine.step0());
+          yield* value;
+        } else {
+          engine.step1();
 
-        while (peekr.done && !chunkPeekr.done) {
-          chunkPeekr = await chunkPeekr.advance();
-          peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
+          peekr = peekr.advance();
+
+          while (peekr.done && !chunkPeekr.done) {
+            chunkPeekr = await chunkPeekr.advance();
+            peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
+          }
         }
-
-        ({ value, done } = engine.step0(lastChr, chr));
-        if (value !== null) yield* value;
       }
+
+      engine.feed(null);
+
+      ({ value, done } = engine.step0());
+      yield* value;
     } finally {
       peekr.return();
     }

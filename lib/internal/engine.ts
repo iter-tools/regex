@@ -48,6 +48,7 @@ const cloneMatcherState = (state: MatcherState) => {
 };
 
 const noContext: W1Context = {};
+const noMatches: Array<never> = [];
 
 const nextSeq = (node: Node | null): Sequence | null => {
   let n: Node = node!;
@@ -305,6 +306,10 @@ export class Engine {
   matcher: Width0Matcher;
   initialMatchState: MatcherState;
   repetitionCount: number;
+  index: number;
+  width: number;
+  lastChr: string | null;
+  chr: string | null;
 
   constructor(pattern: Pattern) {
     const { initialState, matcher } = getPatternInternal(pattern);
@@ -315,15 +320,27 @@ export class Engine {
 
     this.root = new Match(null!, this, pattern.global ? 0 : -1, []);
     this.root.buildSequences([matcher], initialState);
+
+    this.index = 0;
+    this.width = 0;
+    this.lastChr = undefined!;
+    this.chr = undefined!;
   }
 
-  step0(lastChr: string | null, nextChr: string | null) {
+  feed(chr: string | null) {
+    this.lastChr = this.chr;
+    this.chr = chr;
+    this.index++;
+  }
+
+  step0() {
+    const { lastChr, chr } = this;
     const seenRepetitions = new Array(this.repetitionCount);
     const context: W0Context = {
       lastChr,
       lastCode: lastChr === null ? null : code(lastChr),
-      nextChr,
-      nextCode: nextChr === null ? null : code(nextChr),
+      nextChr: chr,
+      nextCode: chr === null ? null : code(chr),
       seenRepetitions,
     };
 
@@ -335,7 +352,7 @@ export class Engine {
       if (next.width === 0) {
         // Match against any number of chained width 0 states
         seq = seq.apply(next.match(mutableState, context));
-      } else if (nextChr === null) {
+      } else if (chr === null) {
         // the input ended before the pattern succeeded
         seq = seq.fail();
       } else {
@@ -346,16 +363,23 @@ export class Engine {
     const { root } = this;
     const { matches } = root;
 
+    this.width = 1;
+
     if (matches.length > 0) {
       root.matches = [];
       return { value: matches, done: root.best === null };
     } else {
-      return { value: null, done: root.best === null };
+      return { value: noMatches, done: root.best === null };
     }
   }
 
-  step1(chr: string) {
+  step1() {
+    const { chr } = this;
     let seq = nextSeq(this.root);
+
+    if (chr === null) {
+      throw new Error('step1 cannot be called on {chr: null}');
+    }
 
     while (seq !== null) {
       const { next, mutableState } = seq;
@@ -368,5 +392,7 @@ export class Engine {
       // Remove returns the nextSeq, so don't skip it
       seq = node === seq ? nextSeq(node) : node;
     }
+
+    this.width = 0;
   }
 }
