@@ -246,7 +246,7 @@ const endCapture = (): UnboundMatcher => (next) => {
 
       const capture = {
         idx,
-        start: result === null ? 0 : result.length,
+        start,
         end,
         result: result!.slice(start!, end),
         parentList,
