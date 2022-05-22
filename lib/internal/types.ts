@@ -1,7 +1,7 @@
-import type { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
+import type { ImmutableStackFrame as ImmutableStack } from '@iter-tools/imm-stack';
 import type { ImmutableTree } from './rbt';
 
-export { Stack };
+export { ImmutableStack };
 
 export type RepetitionState = {
   min: number;
@@ -9,24 +9,27 @@ export type RepetitionState = {
 };
 
 export type Capture = {
+  children: ImmutableStack<Capture>;
   idx: number;
   start: number | null;
   end: number | null;
   result: string | null;
-  parentList: Stack<Capture>;
-  children: Stack<Capture>;
 };
 
-export type MatcherState = {
+// Sequence state is mutable! Expressions make copies.
+export type SequenceState = {
   result: string | null;
-  captureStack: Stack<Capture>;
-  captureList: Stack<Capture>;
+  // A stack of the captures we are currently nested inside
+  parentCaptures: ImmutableStack<Capture>;
+  // The current capture.
+  // Not on the stack because if it was we'd throw away the root capture before we hit term!
+  capture: Capture;
   repetitionStates: ImmutableTree<number, RepetitionState>;
 };
 
+export const contType = Symbol('continuation');
 export const exprType = Symbol('expr');
 export const successType = Symbol('success');
-export const contType = Symbol('continuation');
 
 export type ExpressionState = {
   type: typeof exprType;
@@ -54,7 +57,7 @@ export type Width0Matcher = {
   width: 0;
   name: string;
   next: null | Matcher | Array<Matcher>;
-  match(state: MatcherState, context: W0Context): State | null;
+  match(state: SequenceState, context: W0Context): State | null;
 };
 
 export type W1Context = Record<never, never>;
@@ -63,7 +66,7 @@ export type Width1Matcher = {
   width: 1;
   name: string;
   next: null | Matcher;
-  match(state: MatcherState, chr: string, chrCode: number, context: W1Context): State | null;
+  match(state: SequenceState, chr: string, chrCode: number, context: W1Context): State | null;
 };
 
 export type Context = W0Context | W1Context;

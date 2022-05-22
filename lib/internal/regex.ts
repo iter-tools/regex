@@ -4,7 +4,7 @@ import type { Flags } from '../types';
 import {
   Matcher,
   State,
-  MatcherState,
+  SequenceState,
   UnboundMatcher,
   Width0Matcher,
   RepetitionState,
@@ -23,7 +23,7 @@ const compose = (lExp: UnboundMatcher, rExp: UnboundMatcher) => {
   return (next: Matcher) => lExp(rExp(next));
 };
 
-const growResult = (state: MatcherState, chr: string) => {
+const growResult = (state: SequenceState, chr: string) => {
   state.result += chr;
 };
 
@@ -32,16 +32,13 @@ const term = (global: boolean, capturesLen: number): Matcher => ({
   width: 0,
   name: 'term',
   next: null,
-  match: (state: MatcherState) => {
-    const { captureList } = state;
-    const rootCapture = captureList.value;
-    return rootCapture.result !== null
-      ? {
-          type: successType,
-          global,
-          captures: flattenCapture(rootCapture, capturesLen),
-        }
-      : null;
+  match: (state: SequenceState) => {
+    const { capture } = state;
+    return {
+      type: successType,
+      global,
+      captures: flattenCapture(capture, capturesLen),
+    };
   },
 });
 
@@ -210,22 +207,19 @@ const startCapture =
       name: 'startCapture',
       next,
       match: (state) => {
-        const { result, captureStack, captureList: parentList } = state;
+        const { result, capture: parentCapture, parentCaptures } = state;
 
-        const list = emptyStack;
-
-        const capture = {
+        state.result = result === null ? '' : result;
+        if (parentCapture !== null) {
+          state.parentCaptures = parentCaptures.push(parentCapture);
+        }
+        state.capture = {
+          children: emptyStack,
           idx,
           start: result === null ? 0 : result.length,
           end: null,
           result: null,
-          parentList,
-          children: list,
         };
-
-        state.result = result === null ? '' : result;
-        state.captureStack = captureStack.push(capture);
-        state.captureList = list;
 
         return next;
       },
@@ -240,29 +234,31 @@ const endCapture = (): UnboundMatcher => (next) => {
     name: 'endCapture',
     next,
     match: (state) => {
-      const { result, captureStack, captureList: children } = state;
-      const { start, parentList, idx } = captureStack.value;
-      const end = result!.length;
+      const { parentCaptures, capture } = state;
+      const result = state.result!;
+      const { start } = capture;
+      const end = result.length;
 
-      const capture = {
-        idx,
-        start,
-        end,
-        result: result!.slice(start!, end),
-        parentList,
-        children,
-      };
+      capture.end = end;
+      capture.result = result.slice(start!, end);
 
-      let list = parentList;
+      if (parentCaptures.size > 0) {
+        const parentCapture = parentCaptures.value;
+        let { children } = parentCapture;
 
-      if (list.size > 0 && list.value.idx === capture.idx) {
-        // Subsequent matches of the same capture group overwrite
-        list = list.prev;
+        if (children.size > 0 && children.value.idx === capture.idx) {
+          // Subsequent matches of the same capture group overwrite
+          children = children.prev;
+        }
+
+        parentCapture.children = children.push(capture);
+
+        state.parentCaptures = parentCaptures.prev;
+        state.capture = parentCapture;
+      } else {
+        // the root capture ended
+        state.result = null;
       }
-
-      if (captureStack.prev.size === 0) state.result = null;
-      state.captureStack = captureStack.prev;
-      state.captureList = list.push(capture);
 
       return next;
     },
@@ -380,7 +376,7 @@ const visitors: Visitors<UnboundMatcher, ParserState> = {
 };
 
 export const buildPatternInternal = (ast: RegexppPattern, flags: Flags) => {
-  const pState: ParserState = {
+  const state: ParserState = {
     cIdx: -1, // capture index
     qIdx: -1, // quantifier index
     flags,
@@ -388,24 +384,24 @@ export const buildPatternInternal = (ast: RegexppPattern, flags: Flags) => {
     initialRepetitionStates: [],
   };
 
-  if (pState.flags.unicode) {
+  if (state.flags.unicode) {
     throw new Error('Regex u flag is unsupported');
   }
 
-  const seq = visit(ast, pState, visitors);
+  const seq = visit(ast, state, visitors);
 
-  const initialState = {
+  const initialState: SequenceState = {
     result: null,
-    captureStack: emptyStack,
-    captureList: emptyStack,
-    repetitionStates: pState.initialRepetitionStates.reduce(
+    parentCaptures: emptyStack,
+    capture: null!,
+    repetitionStates: state.initialRepetitionStates.reduce(
       (tree, state, i) => tree.insert(i, state),
       createTree<number, RepetitionState>((a, b) => a - b),
     ),
   };
 
   // Bind `next` arguments. The final `next` value is the terminal state.
-  const matcher = seq(term(pState.flags.global, pState.cIdx + 1)) as Width0Matcher;
+  const matcher = seq(term(state.flags.global, state.cIdx + 1)) as Width0Matcher;
 
   return { initialState, matcher };
 };
