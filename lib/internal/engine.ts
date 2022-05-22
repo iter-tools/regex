@@ -1,7 +1,7 @@
 import { code } from './literals';
 import {
   State,
-  MatcherState,
+  SequenceState,
   Width0Matcher,
   W0Context,
   W1Context,
@@ -16,24 +16,24 @@ import { Pattern, getPatternInternal } from '../pattern';
  ┌───────────────────────┐                                   ┌───────────────┐
  │ Engine data structure │           ┌─────────┐             │   Sequence    │
  │                       │           │ Matcher │             └──────┬────────┘
- │ Diagram created with  │           └─────────┘             parent │  ▲
- │ https://asciiflow.com │                  ▲                       ▼  │ best
- └───────────────────────┘                  │ next           ┌─────────┴─────┐
+ │ Diagram created with  │           └─────────┘             parent │ ▲
+ │ https://asciiflow.com │                  ▲                       ▼ │ best
+ └───────────────────────┘                  │ next           ┌────────┴──────┐
                             better ┌────────┴─────┐  better  │    Match      │
            ┌─────────┐     null ◄──┤   Sequence   │◄─────────┤ captures: ['']│
            │ Matcher │             │              │  worse   │ globalIdx: 1  │  worse
-           └─────────┘             └──────┬───────┴─────────►└──────┬──┬─────┴──► null
-                  ▲                parent │ ▲                parent │  │ engine
-                  │ next                  ▼ │ best                  │  │
-  better ┌────────┴─────┐  better  ┌────────┴─────┐ ◄───────────────┘  │
- null ◄──┤   Sequence   │◄─────────┤  Expression  │                    │
-         │              │  worse   │              │  worse             │
-         └──────┬───────┴─────────►└──────┬───────┴──► null            │
-         parent │ ▲                parent │                            │
-                ▼ │ best                  │                            │
-         ┌────────┴─────┐ ◄───────────────┘                            │
-         │    Match     │                                              │
-         │ captures: [] │ engine                                       ▼
+           └─────────┘             └──────┬───────┴─────────►└──────┬─┬──────┴──► null
+                  ▲                parent │ ▲                parent │ │ engine
+                  │ next                  ▼ │ best                  │ │
+  better ┌────────┴─────┐  better  ┌────────┴─────┐ ◄───────────────┘ │
+ null ◄──┤   Sequence   │◄─────────┤  Expression  │                   │
+         │              │  worse   │              │  worse            │
+         └──────┬───────┴─────────►└──────┬───────┴──► null           │
+         parent │ ▲                parent │                           │
+                ▼ │ best                  │                           │
+         ┌────────┴─────┐ ◄───────────────┘                           │
+         │    Match     │                                             │
+         │ captures: [] │ engine                                      ▼
          │ globalIdx: 0 ├──────────────────────────────────► ┌─────────────┐
          └────────┬─────┘                                    │   Engine    │
                   │ parent                                   │             │
@@ -42,9 +42,9 @@ import { Pattern, getPatternInternal } from '../pattern';
 
 export type Captures = Array<string | undefined>;
 
-const cloneMatcherState = (state: MatcherState) => {
-  const { result, captureStack, captureList, repetitionStates } = state;
-  return { result, captureStack, captureList, repetitionStates };
+const cloneSequenceState = (state: SequenceState) => {
+  const { result, parentCaptures, capture, repetitionStates } = state;
+  return { result, parentCaptures, capture, repetitionStates };
 };
 
 const noContext: W1Context = {};
@@ -138,12 +138,12 @@ export class Node {
 
 export class Sequence extends Node {
   next: Matcher;
-  mutableState: MatcherState;
+  state: SequenceState;
 
-  constructor(parent: Expression, next: Matcher, mutableState: MatcherState) {
+  constructor(parent: Expression, next: Matcher, state: SequenceState) {
     super(parent);
     this.next = next;
-    this.mutableState = mutableState;
+    this.state = state;
   }
 
   fail(): Sequence | null {
@@ -154,9 +154,6 @@ export class Sequence extends Node {
       return getSeq(parent);
     } else {
       this.remove();
-
-      // const node = this.worse !== null ? getSeq(this.worse) : nextSeq(this);
-      // return getSeq(this.worse !== null && this.worse instanceof Match ? this.worse.promote() : node);
 
       if (this.worse !== null && this.worse instanceof Match) {
         this.worse.promote();
@@ -172,7 +169,7 @@ export class Sequence extends Node {
     const match = new Match(this.parent, engine, engine.global ? globalIdx + 1 : -1, [captures]);
 
     if (engine.global) {
-      match.buildSequences([engine.matcher], cloneMatcherState(engine.initialMatchState));
+      match.buildSequences([engine.matcher], cloneSequenceState(engine.initialMatchState));
     }
 
     this.replaceWith(match);
@@ -183,9 +180,9 @@ export class Sequence extends Node {
   explode(seqs: Array<Matcher>) {
     const { parent, better, worse } = this;
     if (better === null && worse === null && parent instanceof Match) {
-      return getSeq(parent.buildSequences(seqs, this.mutableState));
+      return getSeq(parent.buildSequences(seqs, this.state));
     } else {
-      const expr = new Expression(parent).buildSequences(seqs, this.mutableState);
+      const expr = new Expression(parent).buildSequences(seqs, this.state);
       return getSeq(this.replaceWith(expr));
     }
   }
@@ -226,12 +223,12 @@ export class Expression extends Node {
     this.best = null;
   }
 
-  buildSequences(matchers: Array<Matcher>, mutableState: MatcherState) {
-    const best = new Sequence(this, null!, mutableState);
+  buildSequences(matchers: Array<Matcher>, sequenceState: SequenceState) {
+    const best = new Sequence(this, null!, sequenceState);
     let prev = best;
 
     for (const matcher of matchers) {
-      const seq = new Sequence(this, matcher, cloneMatcherState(mutableState));
+      const seq = new Sequence(this, matcher, cloneSequenceState(sequenceState));
       seq.better = prev;
       prev.worse = seq;
       prev = seq;
@@ -304,7 +301,7 @@ export class Engine {
   global: boolean;
   root: Match;
   matcher: Width0Matcher;
-  initialMatchState: MatcherState;
+  initialMatchState: SequenceState;
   repetitionCount: number;
   index: number;
   width: number;
@@ -363,11 +360,11 @@ export class Engine {
     let seq: Sequence | null = nextSeq(this.root);
 
     while (seq !== null) {
-      const { next, mutableState } = seq;
+      const { next, state } = seq;
 
       if (next.width === 0) {
         // Match against any number of chained width 0 states
-        seq = seq.apply(next.match(mutableState, context));
+        seq = seq.apply(next.match(state, context));
       } else if (chr === null) {
         // the input ended before the pattern succeeded
         seq = seq.fail();
@@ -402,13 +399,13 @@ export class Engine {
     }
 
     while (seq !== null) {
-      const { next, mutableState } = seq;
+      const { next, state } = seq;
 
       if (next.width !== 1) {
         throw new Error('Unexpectedly ran step1 with width 0 matchers active');
       }
 
-      const node = seq.apply(next.match(mutableState, chr, code(chr), noContext));
+      const node = seq.apply(next.match(state, chr, code(chr), noContext));
       // Remove returns the nextSeq, so don't skip it
       seq = node === seq ? nextSeq(node) : node;
     }
