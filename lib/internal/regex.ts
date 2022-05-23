@@ -43,6 +43,7 @@ const term = (global: boolean, capturesLen: number): Matcher => ({
         }
       : null;
   },
+  props: { global, capturesLen },
 });
 
 const unmatched = (): UnboundMatcher => (next) => {
@@ -52,6 +53,7 @@ const unmatched = (): UnboundMatcher => (next) => {
     name: 'unmatched',
     next,
     match: () => next,
+    props: {},
   };
 };
 
@@ -72,7 +74,7 @@ const literal =
           return null;
         }
       },
-      value,
+      props: { value, test, negate },
     };
   };
 
@@ -88,7 +90,7 @@ const expression =
       name: 'expression',
       next,
       match: () => result,
-      matchers: boundMatchers,
+      props: { matchers: boundMatchers },
     };
   };
 
@@ -97,8 +99,8 @@ const resetRepetitionStates =
   (next) => {
     return {
       type: contType,
-      name: 'resetRepetitionStates',
       width: 0,
+      name: 'resetRepetitionStates',
       next,
       match: (state) => {
         let { repetitionStates } = state;
@@ -110,6 +112,7 @@ const resetRepetitionStates =
 
         return next;
       },
+      props: { idxs, initialRepetitionStates },
     };
   };
 
@@ -118,8 +121,8 @@ const edgeAssertion =
   (next) => {
     return {
       type: contType,
-      name: 'edgeAssertion',
       width: 0,
+      name: 'edgeAssertion',
       next,
       match: flags.multiline
         ? kind === 'start'
@@ -140,15 +143,15 @@ const edgeAssertion =
             const { nextCode } = context;
             return nextCode === null ? next : null;
           },
-      kind,
+      props: { kind },
     };
   };
 
 const boundaryAssertion = (): UnboundMatcher => (next) => {
   return {
     type: contType,
-    name: 'boundaryAssertion',
     width: 0,
+    name: 'boundaryAssertion',
     next,
     match: (state, context) => {
       const { lastCode, nextCode } = context;
@@ -156,16 +159,17 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
       const nextIsWord = nextCode === null ? false : testWord(nextCode);
       return lastIsWord !== nextIsWord ? next : null;
     },
+    props: {},
   };
 };
 
 const repeat =
   (exp: UnboundMatcher, key: number, greedy = true): UnboundMatcher =>
   (next) => {
-    const matcher = {
+    const matcher: Width0Matcher = {
       type: contType,
-      name: 'repeat',
       width: 0,
+      name: 'repeat',
       next,
       match: (state, context): State | null => {
         const repStateNode = state.repetitionStates.find(key);
@@ -187,7 +191,8 @@ const repeat =
           return min > 0 ? repeatCont : exprCont;
         }
       },
-    } as Width0Matcher & { repeatCont: State; exprCont: State };
+      props: { key, greedy },
+    };
 
     const repeatCont = exp(matcher);
     const exprCont: State = {
@@ -195,8 +200,8 @@ const repeat =
       seqs: greedy ? [repeatCont, next] : [next, repeatCont],
     };
 
-    matcher.repeatCont = repeatCont;
-    matcher.exprCont = exprCont;
+    matcher.props.repeatCont = repeatCont;
+    matcher.props.exprCont = exprCont;
 
     return matcher;
   };
@@ -229,7 +234,7 @@ const startCapture =
 
         return next;
       },
-      idx,
+      props: { idx },
     };
   };
 
@@ -266,6 +271,7 @@ const endCapture = (): UnboundMatcher => (next) => {
 
       return next;
     },
+    props: {},
   };
 };
 

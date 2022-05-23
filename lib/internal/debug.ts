@@ -1,36 +1,40 @@
+import { Matcher } from './types';
+
 export const debugPrint = (matcher: any): string | null => {
   if (matcher === null) return null;
 
-  let m = matcher;
+  let m: Matcher | null = matcher;
   let str = '';
   while (m !== null) {
+    const { props } = m;
+
     if (typeof matcher.match !== 'function') {
       throw new Error('debugPrint can only print matchers.');
     }
 
     switch (m.name) {
       case 'literal':
-        str += m.value;
+        str += props.value;
         break;
       case 'boundaryAssertion':
         str += '\\b';
         break;
       case 'edgeAssertion':
-        str += m.kind === 'start' ? '^' : '$';
+        str += props.kind === 'start' ? '^' : '$';
         break;
       case 'repeat':
-        if (m.repeatCont.name !== 'unmatched') {
-          str += `(${m.exprCont.seqs.map((m: any) => debugPrint(m)).join('|')})*`;
+        if (props.repeatCont.name !== 'unmatched') {
+          str += `(${props.exprCont.seqs.map((m: any) => debugPrint(m)).join('|')})*`;
         }
         break;
       case 'expression':
-        str += `(${m.matchers.map((m: any) => debugPrint(m)).join('|')})`;
+        str += `(${props.matchers.map((m: any) => debugPrint(m)).join('|')})`;
         // m.next is already distributed into m.matchers -- don't print it twice!
         return str;
       default:
         break;
     }
-    m = m.next;
+    m = m.next as Matcher;
   }
   return str;
 };
