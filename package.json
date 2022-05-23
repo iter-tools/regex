@@ -35,7 +35,7 @@
     ]
   },
   "dependencies": {
-    "@iter-tools/imm-stack": "^1.0.0",
+    "@iter-tools/imm-stack": "^1.1.0",
     "functional-red-black-tree": "^1.0.1",
     "iter-tools-es": "^7.0.2",
     "regexpp": "^3.1.0"

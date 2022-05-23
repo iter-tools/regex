@@ -1,26 +1,34 @@
-import type { ImmutableStackFrame as Stack } from '@iter-tools/imm-stack';
+import type { ImmutableStackFrame as ImmutableStack } from '@iter-tools/imm-stack';
 import type { ImmutableTree } from './rbt';
 
-export { Stack };
+export { ImmutableStack };
 
 export type RepetitionState = {
   min: number;
   max: number;
 };
 
-export type Capture = {
+type PartialCapture = {
   idx: number;
-  start: number | null;
-  end: number | null;
-  result: string | null;
-  parentList: Stack<Capture>;
-  children: Stack<Capture>;
+  start: number;
+  end: null;
+  result: null;
+  children: ImmutableStack<never>;
 };
+
+type CompleteCapture = {
+  idx: number;
+  start: number;
+  end: number;
+  result: string;
+  children: ImmutableStack<Capture>;
+};
+
+export type Capture = PartialCapture | CompleteCapture;
 
 export type MatcherState = {
   result: string | null;
-  captureStack: Stack<Capture>;
-  captureList: Stack<Capture>;
+  captureStack: ImmutableStack<ImmutableStack<Capture>>;
   repetitionStates: ImmutableTree<number, RepetitionState>;
 };
 

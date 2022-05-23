@@ -33,15 +33,15 @@ const term = (global: boolean, capturesLen: number): Matcher => ({
   name: 'term',
   next: null,
   match: (state: MatcherState) => {
-    const { captureList } = state;
-    const rootCapture = captureList.value;
-    return rootCapture.result !== null
-      ? {
-          type: successType,
-          global,
-          captures: flattenCapture(rootCapture, capturesLen),
-        }
-      : null;
+    const { captureStack } = state;
+
+    const rootCapture = captureStack.peek().peek();
+
+    return {
+      type: successType,
+      global,
+      captures: flattenCapture(rootCapture, capturesLen),
+    };
   },
   props: { global, capturesLen },
 });
@@ -215,22 +215,21 @@ const startCapture =
       name: 'startCapture',
       next,
       match: (state) => {
-        const { result, captureStack, captureList: parentList } = state;
+        const { result, captureStack } = state;
+        const captureList = captureStack.peek();
 
-        const list = emptyStack;
-
-        const capture = {
+        const partialCapture = {
           idx,
           start: result === null ? 0 : result.length,
           end: null,
           result: null,
-          parentList,
-          children: list,
+          children: emptyStack,
         };
 
+        state.captureStack = captureStack
+          .replace(captureList.push(partialCapture))
+          .push(emptyStack);
         state.result = result === null ? '' : result;
-        state.captureStack = captureStack.push(capture);
-        state.captureList = list;
 
         return next;
       },
@@ -245,29 +244,36 @@ const endCapture = (): UnboundMatcher => (next) => {
     name: 'endCapture',
     next,
     match: (state) => {
-      const { result, captureStack, captureList: children } = state;
-      const { start, parentList, idx } = captureStack.value;
+      const { result } = state;
+      let { captureStack } = state;
+      const children = captureStack.peek();
+
+      state.captureStack = captureStack = state.captureStack.pop();
+
+      let captureList = captureStack.peek();
+      const partialCapture = captureList.peek();
+      const { idx, start } = partialCapture;
       const end = result!.length;
+
+      captureList = captureList.pop();
 
       const capture = {
         idx,
         start,
         end,
         result: result!.slice(start!, end),
-        parentList,
         children,
       };
 
-      let list = parentList;
-
-      if (list.size > 0 && list.value.idx === capture.idx) {
+      if (captureList.size > 0 && captureList.peek().idx === capture.idx) {
         // Subsequent matches of the same capture group overwrite
-        list = list.prev;
+        captureList = captureList.prev;
       }
 
-      if (captureStack.prev.size === 0) state.result = null;
-      state.captureStack = captureStack.prev;
-      state.captureList = list.push(capture);
+      captureList = captureList.push(capture);
+
+      state.result = captureStack.size === 1 ? null : result;
+      state.captureStack = captureStack.replace(captureList);
 
       return next;
     },
@@ -400,10 +406,9 @@ export const buildPatternInternal = (ast: RegexppPattern, flags: Flags) => {
 
   const seq = visit(ast, pState, visitors);
 
-  const initialState = {
+  const initialState: MatcherState = {
     result: null,
-    captureStack: emptyStack,
-    captureList: emptyStack,
+    captureStack: emptyStack.push(emptyStack),
     repetitionStates: pState.initialRepetitionStates.reduce(
       (tree, state, i) => tree.insert(i, state),
       createTree<number, RepetitionState>((a, b) => a - b),
