@@ -239,24 +239,29 @@ const endCapture = (): UnboundMatcher => (next) => {
     name: 'endCapture',
     next,
     match: (state) => {
-      const { parentCaptures, capture } = state;
+      let { parentCaptures, capture } = state;
       const result = state.result!;
-      const { start } = capture;
+      const { children, idx, start } = capture;
       const end = result.length;
 
-      capture.end = end;
-      capture.result = result.slice(start!, end);
+      state.capture = capture = {
+        children,
+        idx,
+        start,
+        end,
+        result: result.slice(start!, end),
+      };
 
       if (parentCaptures.size > 0) {
         const parentCapture = parentCaptures.value;
-        let { children } = parentCapture;
+        let { children: list } = parentCapture;
 
-        if (children.size > 0 && children.value.idx === capture.idx) {
-          // Subsequent matches of the same capture group overwrite
-          children = children.prev;
+        // Subsequent matches of the same capture group overwrite each other.
+        if (list.size > 0 && list.value.idx === capture.idx) {
+          list = list.prev;
         }
 
-        parentCapture.children = children.push(capture);
+        parentCapture.children = list.push(capture);
 
         state.parentCaptures = parentCaptures.prev;
         state.capture = parentCapture;
