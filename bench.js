@@ -4,7 +4,6 @@ const { execGlobal, parse } = require('./lib');
 const howto = fs.readFileSync('corpus/howtosmall', 'utf-8');
 
 const t = (exp) => {
-  // const [...junk] = execGlobal(exp, howto);
   console.time('execGlobal');
   const [...matches] = execGlobal(exp, howto);
   console.timeEnd('execGlobal');

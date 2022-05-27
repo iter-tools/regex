@@ -21,16 +21,16 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
       if (engine.starved) {
         engine.feed(peekr.value);
         await peekr.advance();
+      } else if (engine.context.width === 0) {
+        yield* engine.traverse0();
+      } else {
+        engine.traverse1();
       }
-
-      yield* engine.traverse0();
-
-      engine.traverse1();
     }
 
     engine.feed(null);
 
-    yield* engine.traverse0();
+    if (!engine.done) yield* engine.traverse0();
   } finally {
     await peekr.return();
   }

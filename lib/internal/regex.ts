@@ -5,17 +5,23 @@ import {
   Matcher,
   State,
   MatcherState,
+  FailureState,
   UnboundMatcher,
   Width0Matcher,
   RepetitionState,
   exprType,
   successType,
   contType,
+  failureType,
 } from './types';
 import { flattenCapture } from './captures';
 import { getCharSetDesc, Visit, visit, Visitors, isAnchored } from './ast';
 import { getTester, testNotNewline, testWord } from './literals';
 import { createTree } from './rbt';
+
+const fail: FailureState = {
+  type: failureType
+}
 
 const identity: UnboundMatcher = (next) => next;
 
@@ -71,7 +77,7 @@ const literal =
           growResult(state, chr);
           return next;
         } else {
-          return null;
+          return fail;
         }
       },
       props: { value, test, negate },
@@ -128,20 +134,20 @@ const edgeAssertion =
         ? kind === 'start'
           ? (state, context) => {
               const { lastCode } = context;
-              return lastCode === -1 || !testNotNewline(lastCode) ? next : null;
+              return lastCode === -1 || !testNotNewline(lastCode) ? next : fail;
             }
           : (state, context) => {
               const { nextCode } = context;
-              return nextCode === -1 || !testNotNewline(nextCode) ? next : null;
+              return nextCode === -1 || !testNotNewline(nextCode) ? next : fail;
             }
         : kind === 'start'
         ? (state, context) => {
             const { lastCode } = context;
-            return lastCode === -1 ? next : null;
+            return lastCode === -1 ? next : fail;
           }
         : (state, context) => {
             const { nextCode } = context;
-            return nextCode === -1 ? next : null;
+            return nextCode === -1 ? next : fail;
           },
       props: { kind },
     };
@@ -157,7 +163,7 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
       const { lastCode, nextCode } = context;
       const lastIsWord = lastCode === -1 ? false : testWord(lastCode);
       const nextIsWord = nextCode === -1 ? false : testWord(nextCode);
-      return lastIsWord !== nextIsWord ? next : null;
+      return lastIsWord !== nextIsWord ? next : fail;
     },
     props: {},
   };
@@ -171,12 +177,12 @@ const repeat =
       width: 0,
       name: 'repeat',
       next,
-      match: (state, context): State | null => {
+      match: (state, context): State => {
         const repStateNode = state.repetitionStates.find(key);
         const { min, max } = repStateNode.value;
 
         if (context.seenRepetitions[key]) {
-          return null;
+          return fail;
         } else if (max === 0) {
           return next;
         } else {

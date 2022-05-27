@@ -46,7 +46,7 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
 
       engine.feed(null);
 
-      yield* engine.traverse0();
+      if (!engine.done) yield* engine.traverse0();
     } finally {
       peekr.return();
     }

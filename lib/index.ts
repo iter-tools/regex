@@ -16,20 +16,20 @@ export const { exec, test, execGlobal } = new Api(function* generate(
   try {
     engine.feed(null);
 
-    while (!engine.done && !peekr.done) {
-      if (engine.starved) {
+    while (!engine.done && !(engine.starved && peekr.done)) {
+      if (engine.starved && !peekr.done) {
         engine.feed(peekr.value);
         peekr.advance();
+      } else if (engine.context.width === 0) {
+        yield* engine.traverse0();
+      } else {
+        engine.traverse1();
       }
-
-      yield* engine.traverse0();
-
-      engine.traverse1();
     }
 
     engine.feed(null);
 
-    yield* engine.traverse0();
+    if (!engine.done) yield* engine.traverse0();
   } finally {
     peekr.return();
   }

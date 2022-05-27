@@ -9,6 +9,7 @@ import {
   exprType,
   successType,
   contType,
+  failureType,
 } from './types';
 import { Pattern, getPatternInternal } from '../pattern';
 
@@ -20,11 +21,12 @@ const cloneMatcherState = (state: MatcherState) => {
 };
 
 export class Node {
-  worse: Node | null;
-  data: Sequence | Match;
+  // We avoid having to deal with null pointers by instead dealing with seq, match, and failure
+  worse: Node;
+  data: Sequence | Match | Failure;
 
-  constructor(data: Sequence | Match = null!) {
-    this.worse = null;
+  constructor(data: Sequence | Match | Failure = null!) {
+    this.worse = null!;
     this.data = data;
   }
 }
@@ -48,48 +50,65 @@ export class Match {
   // Disambiguate between successive occurences of the pattern when matching globally
   globalIdx: number;
   captures: Captures | null;
-  head: Node;
+  head: Node | null;
 
   constructor(pattern: Pattern, globalIdx: number, captures: Captures | null = null) {
+
     this.pattern = pattern;
     this.globalIdx = globalIdx;
     // Ensures prevNode is always defined so we can replace using `prevNode.worse = ...`
-    this.head = new Node();
+    this.head = null;
     this.captures = captures;
 
     if (pattern.global || globalIdx === 0) {
+      const head = new Node();
+      const fail = new Node(new Failure());
+
+      head.worse = fail;
+
       const { initialState, matcher } = getPatternInternal(pattern);
 
-      this.head.worse = new Node(new Sequence(matcher, cloneMatcherState(initialState)));
+      const seq = new Node(new Sequence(matcher, cloneMatcherState(initialState)));
+      seq.worse = fail;
+      head.worse = seq;
+
+      this.head = head;
     }
   }
 }
 
+export class Failure {}
+
+const isSequence = (r: Record<string, any>): r is Sequence => r.constructor === Sequence;
+const isMatch = (r: Record<string, any>): r is Match => r.constructor === Match;
+const isFailure = (r: Record<string, any>): r is Failure => r.constructor === Failure;
+
+const context0Initial: W0Context = {
+  width: 0,
+  lastChr: undefined!,
+  lastCode: -1,
+  nextChr: undefined!,
+  nextCode: -1,
+  seenRepetitions: undefined!,
+};
+const context1Initial: W1Context = {
+  width: 1,
+  chr: undefined!,
+  chrCode: -1,
+};
+
 export class Engine {
-  /* eslint-disable lines-between-class-members */
   global: boolean;
   root: Match;
   repetitionCount: number;
   index = 0;
   starved = true;
-  context0: W0Context = {
-    width: 0,
-    lastChr: undefined!,
-    lastCode: -1,
-    nextChr: undefined!,
-    nextCode: -1,
-    seenRepetitions: [],
-  };
-  context1: W1Context = {
-    width: 1,
-    chr: undefined!,
-    chrCode: -1,
-  };
+  context0: W0Context = {...context0Initial};
+  context1: W1Context = {...context1Initial};
   context: Context = this.context0;
   match: Match;
   prevNode: Node = null!;
-  node: Node | null = null;
-  /* eslint-enable lines-between-class-members */
+  node: Node = null!;
 
   constructor(pattern: Pattern) {
     this.global = pattern.global;
@@ -100,7 +119,7 @@ export class Engine {
   }
 
   get done() {
-    return this.root.head.worse === null;
+    return this.root.head === null;
   }
 
   feed(chr: string | null) {
@@ -123,6 +142,7 @@ export class Engine {
   }
 
   startTraversal(match: Match) {
+    if (match.head === null) throw new Error();
     const { head } = match;
     this.prevNode = head;
     this.node = head.worse;
@@ -130,14 +150,15 @@ export class Engine {
   }
 
   fail() {
-    if (!(this.node?.data instanceof Sequence)) throw new Error();
+    const { node } = this;
+    if (!isSequence(node.data)) throw new Error();
 
-    this.prevNode.worse = this.node = this.node.worse;
+    this.prevNode.worse = this.node = node.worse;
   }
 
   succeed(captures: Captures) {
     const { node, match } = this;
-    if (!(node?.data instanceof Sequence)) throw new Error();
+    if (!isSequence(node.data)) throw new Error();
     const { pattern, globalIdx } = match;
 
     // Stop matching any worse alternatives
@@ -146,7 +167,7 @@ export class Engine {
 
   explode(matchers: Array<Matcher>) {
     const { node } = this;
-    if (!(node?.data instanceof Sequence)) throw new Error();
+    if (!isSequence(node.data)) throw new Error();
 
     const { worse } = node;
     const { mutableState } = node.data;
@@ -165,17 +186,18 @@ export class Engine {
     this.node = this.prevNode.worse;
   }
 
-  apply(state: State | null) {
-    if (!(this.node?.data instanceof Sequence)) throw new Error();
+  apply(state: State) {
+    const { node } = this;
+    if (!isSequence(node.data)) throw new Error();
 
-    if (state === null) {
+    if (state.type === failureType) {
       this.fail();
     } else if (state.type === successType) {
       this.succeed(state.captures);
     } else if (state.type === exprType) {
       this.explode(state.seqs);
     } else if (state.type === contType) {
-      this.node.data.next = state;
+      node.data.next = state;
     } else {
       throw new Error(`Unexpected state of {type: '${(state as any).type}'}`);
     }
@@ -184,43 +206,42 @@ export class Engine {
   step0() {
     const context = this.context as W0Context;
 
-    let { node } = this;
-    while (node?.data instanceof Sequence && node.data.next.width === 0) {
-      this.apply(node.data.next.match(node.data.mutableState, context));
-      ({ node } = this);
-    }
-    if (node?.data instanceof Sequence && node.data.next.width === 1 && context.nextChr === null) {
-      this.fail();
+    let { data } = this.node;
+    while (isSequence(data) && data.next.width === 0) {
+      this.apply(data.next.match(data.mutableState, context));
+      ({ data } = this.node);
     }
   }
 
   step1() {
+    const { node } = this;
     const context = this.context as W1Context;
-    if (this.node?.data instanceof Sequence) {
-      const { next, mutableState } = this.node.data;
-      if (next.width === 1) {
-        this.apply(next.match(mutableState, context));
-      } else {
-        throw new Error('w0 where w1 expected');
-      }
+    const { next, mutableState } = node.data as Sequence;
+    if (next.width === 1) {
+      this.apply(next.match(mutableState, context));
+    } else {
+      throw new Error('w0 where w1 expected');
     }
   }
 
   traverse(step: () => void) {
     this.startTraversal(this.root);
 
+    let { node } = this;
     while (true) {
-      while (this.node !== null) {
-        const { node } = this;
+      while (isSequence(node.data)) {
+        const prevNode = node;
         step();
-        if (node === this.node) {
-          this.prevNode = this.node;
-          this.node = this.node.worse;
+        ({ node } = this);
+        if (prevNode === node) {
+          this.prevNode = node;
+          this.node = node = node.worse;
         }
       }
-      const last = this.prevNode;
-      if (last.data instanceof Match && last.data.head.worse !== null) {
-        this.startTraversal(last.data);
+
+      if (isMatch(node.data) && node.data.head !== null) {
+        this.startTraversal(node.data);
+        ({ node } = this);
       } else {
         break;
       }
@@ -234,9 +255,12 @@ export class Engine {
       throw new Error('step0 called without feeding new input');
     }
 
-    this.context = this.context0;
+    this.traverse(this.step0.bind(this));
 
-    this.traverse(() => this.step0());
+
+    if (this.context0.nextChr === null) {
+      this.traverse(this.fail.bind(this));
+    }
 
     const matches: Array<Captures> = [];
 
@@ -246,22 +270,24 @@ export class Engine {
         matches.push(match.captures);
         match.captures = null;
       }
-      if (match.head.worse?.data instanceof Match) {
+      if (match.head !== null && isMatch(match.head.worse.data)) {
         match = match.head.worse.data;
       } else {
         break;
       }
     }
+
     this.root = match;
+    this.context = this.context1;
 
     return matches;
   }
 
   traverse1() {
-    this.context = this.context1;
 
-    this.traverse(() => this.step1());
+    this.traverse(this.step1.bind(this));
 
+    this.context = this.context0;
     this.starved = true;
   }
 }

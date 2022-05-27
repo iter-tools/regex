@@ -34,6 +34,7 @@ export type MatcherState = {
 
 export const exprType = Symbol('expr');
 export const successType = Symbol('success');
+export const failureType = Symbol('failure');
 export const contType = Symbol('continuation');
 
 export type ExpressionState = {
@@ -47,7 +48,11 @@ export type SuccessState = {
   captures: Array<string | undefined>;
 };
 
-export type State = Matcher | ExpressionState | SuccessState;
+export type FailureState = {
+  type: typeof failureType;
+};
+
+export type State = Matcher | ExpressionState | SuccessState | FailureState;
 
 export type W0Context = {
   width: 0;
@@ -63,7 +68,7 @@ export type Width0Matcher = {
   width: 0;
   name: string;
   next: null | Matcher | Array<Matcher>;
-  match(state: MatcherState, context: W0Context): State | null;
+  match(state: MatcherState, context: W0Context): State;
   props: Record<string, any>;
 };
 
@@ -77,7 +82,7 @@ export type Width1Matcher = {
   width: 1;
   name: string;
   next: null | Matcher;
-  match(state: MatcherState, context: W1Context): State | null;
+  match(state: MatcherState, context: W1Context): State;
   props: Record<string, any>;
 };
 
