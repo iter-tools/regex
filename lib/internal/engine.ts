@@ -21,18 +21,19 @@ const cloneMatcherState = (state: MatcherState) => {
 
 export class Node {
   worse: Node | null;
+  data: Sequence | Match;
 
-  constructor() {
+  constructor(data: Sequence | Match = null!) {
     this.worse = null;
+    this.data = data;
   }
 }
 
-export class Sequence extends Node {
+export class Sequence {
   next: Matcher;
   mutableState: MatcherState;
 
   constructor(next: Matcher, mutableState: MatcherState) {
-    super();
     this.next = next;
     this.mutableState = mutableState;
   }
@@ -42,7 +43,7 @@ export class Sequence extends Node {
 //   - a pending match: the root expression of a continuing line of evaluation which may or may not succeed
 //   - a successful match: a placeholder for results while better alternatives being evaluated
 // When the global flag is enabled a single match may be both these things at the same time.
-export class Match extends Node {
+export class Match {
   pattern: Pattern;
   // Disambiguate between successive occurences of the pattern when matching globally
   globalIdx: number;
@@ -50,16 +51,16 @@ export class Match extends Node {
   head: Node;
 
   constructor(pattern: Pattern, globalIdx: number, captures: Captures | null = null) {
-    super();
     this.pattern = pattern;
     this.globalIdx = globalIdx;
+    // Ensures prevNode is always defined so we can replace using `prevNode.worse = ...`
     this.head = new Node();
     this.captures = captures;
 
     if (pattern.global || globalIdx === 0) {
       const { initialState, matcher } = getPatternInternal(pattern);
 
-      this.head.worse = new Sequence(matcher, cloneMatcherState(initialState));
+      this.head.worse = new Node(new Sequence(matcher, cloneMatcherState(initialState)));
     }
   }
 }
@@ -129,30 +130,31 @@ export class Engine {
   }
 
   fail() {
-    if (!(this.node instanceof Sequence)) throw new Error();
+    if (!(this.node?.data instanceof Sequence)) throw new Error();
 
     this.prevNode.worse = this.node = this.node.worse;
   }
 
   succeed(captures: Captures) {
     const { node, match } = this;
-    if (!(node instanceof Sequence)) throw new Error();
+    if (!(node?.data instanceof Sequence)) throw new Error();
     const { pattern, globalIdx } = match;
 
     // Stop matching any worse alternatives
-    this.prevNode.worse = this.node = new Match(pattern, globalIdx + 1, captures);
+    this.prevNode.worse = this.node = new Node(new Match(pattern, globalIdx + 1, captures));
   }
 
   explode(matchers: Array<Matcher>) {
     const { node } = this;
-    if (!(node instanceof Sequence)) throw new Error();
+    if (!(node?.data instanceof Sequence)) throw new Error();
 
-    const { mutableState, worse } = node;
+    const { worse } = node;
+    const { mutableState } = node.data;
 
     let prev = this.prevNode;
-    let seq: Sequence = undefined!;
+    let seq: Node = undefined!;
     for (const matcher of matchers) {
-      seq = new Sequence(matcher, cloneMatcherState(mutableState));
+      seq = new Node(new Sequence(matcher, cloneMatcherState(mutableState)));
       prev.worse = seq;
       prev = seq;
     }
@@ -164,7 +166,7 @@ export class Engine {
   }
 
   apply(state: State | null) {
-    if (!(this.node instanceof Sequence)) throw new Error();
+    if (!(this.node?.data instanceof Sequence)) throw new Error();
 
     if (state === null) {
       this.fail();
@@ -173,7 +175,7 @@ export class Engine {
     } else if (state.type === exprType) {
       this.explode(state.seqs);
     } else if (state.type === contType) {
-      this.node.next = state;
+      this.node.data.next = state;
     } else {
       throw new Error(`Unexpected state of {type: '${(state as any).type}'}`);
     }
@@ -183,19 +185,19 @@ export class Engine {
     const context = this.context as W0Context;
 
     let { node } = this;
-    while (node instanceof Sequence && node.next.width === 0) {
-      this.apply(node.next.match(node.mutableState, context));
+    while (node?.data instanceof Sequence && node.data.next.width === 0) {
+      this.apply(node.data.next.match(node.data.mutableState, context));
       ({ node } = this);
     }
-    if (node instanceof Sequence && node.next.width === 1 && context.nextChr === null) {
+    if (node?.data instanceof Sequence && node.data.next.width === 1 && context.nextChr === null) {
       this.fail();
     }
   }
 
   step1() {
     const context = this.context as W1Context;
-    if (this.node instanceof Sequence) {
-      const { next, mutableState } = this.node;
+    if (this.node?.data instanceof Sequence) {
+      const { next, mutableState } = this.node.data;
       if (next.width === 1) {
         this.apply(next.match(mutableState, context));
       } else {
@@ -217,8 +219,8 @@ export class Engine {
         }
       }
       const last = this.prevNode;
-      if (last instanceof Match && last.head.worse !== null) {
-        this.startTraversal(last);
+      if (last.data instanceof Match && last.data.head.worse !== null) {
+        this.startTraversal(last.data);
       } else {
         break;
       }
@@ -244,8 +246,8 @@ export class Engine {
         matches.push(match.captures);
         match.captures = null;
       }
-      if (match.head.worse instanceof Match) {
-        match = match.head.worse;
+      if (match.head.worse?.data instanceof Match) {
+        match = match.head.worse.data;
       } else {
         break;
       }
