@@ -8,6 +8,7 @@ import {
   FailureState,
   UnboundMatcher,
   Width0Matcher,
+  W0Context,
   RepetitionState,
   exprType,
   successType,
@@ -20,8 +21,8 @@ import { getTester, testNotNewline, testWord } from './literals';
 import { createTree } from './rbt';
 
 const fail: FailureState = {
-  type: failureType
-}
+  type: failureType,
+};
 
 const identity: UnboundMatcher = (next) => next;
 
@@ -37,8 +38,9 @@ const term = (global: boolean, capturesLen: number): Matcher => ({
   type: contType,
   width: 0,
   name: 'term',
-  next: null,
-  match: (state: MatcherState) => {
+  next: null!,
+  match(state: MatcherState) {
+    const { global, capturesLen } = this.props;
     const { captureStack } = state;
 
     const rootCapture = captureStack.peek().peek();
@@ -58,24 +60,27 @@ const unmatched = (): UnboundMatcher => (next) => {
     width: 1,
     name: 'unmatched',
     next,
-    match: () => next,
+    match() {
+      return this.next;
+    },
     props: {},
   };
 };
 
 // match a character
 const literal =
-  (value: string, test: (chr: number) => boolean, negate = false): UnboundMatcher =>
+  (value: string, test: (chrCode: number) => boolean, negate = false): UnboundMatcher =>
   (next) => {
     return {
       type: contType,
       width: 1,
       name: 'literal',
       next,
-      match: (state, { chr, chrCode }) => {
+      match(state, { chr, chrCode }) {
+        const { test, negate } = this.props;
         if (negate !== test(chrCode)) {
           growResult(state, chr);
-          return next;
+          return this.next;
         } else {
           return fail;
         }
@@ -95,8 +100,10 @@ const expression =
       width: 0,
       name: 'expression',
       next,
-      match: () => result,
-      props: { matchers: boundMatchers },
+      match() {
+        return this.props.result;
+      },
+      props: { matchers: boundMatchers, result },
     };
   };
 
@@ -108,7 +115,8 @@ const resetRepetitionStates =
       width: 0,
       name: 'resetRepetitionStates',
       next,
-      match: (state) => {
+      match(state) {
+        const { idxs, initialRepetitionStates } = this.props;
         let { repetitionStates } = state;
         for (const idx of idxs) {
           repetitionStates = repetitionStates.find(idx).update(initialRepetitionStates[idx]);
@@ -116,7 +124,7 @@ const resetRepetitionStates =
 
         state.repetitionStates = repetitionStates;
 
-        return next;
+        return this.next;
       },
       props: { idxs, initialRepetitionStates },
     };
@@ -125,30 +133,32 @@ const resetRepetitionStates =
 const edgeAssertion =
   (kind: 'start' | 'end', flags: Flags): UnboundMatcher =>
   (next) => {
+    const match: (state: MatcherState, context: W0Context) => State = flags.multiline
+      ? kind === 'start'
+        ? function match(this: any, state, context) {
+            const { lastCode } = context;
+            return lastCode === -1 || !testNotNewline(lastCode) ? this.next : fail;
+          }
+        : function match(this: any, state, context) {
+            const { nextCode } = context;
+            return nextCode === -1 || !testNotNewline(nextCode) ? this.next : fail;
+          }
+      : kind === 'start'
+      ? function match(this: any, state, context) {
+          const { lastCode } = context;
+          return lastCode === -1 ? this.next : fail;
+        }
+      : function match(this: any, state, context) {
+          const { nextCode } = context;
+          return nextCode === -1 ? this.next : fail;
+        };
+
     return {
       type: contType,
       width: 0,
       name: 'edgeAssertion',
       next,
-      match: flags.multiline
-        ? kind === 'start'
-          ? (state, context) => {
-              const { lastCode } = context;
-              return lastCode === -1 || !testNotNewline(lastCode) ? next : fail;
-            }
-          : (state, context) => {
-              const { nextCode } = context;
-              return nextCode === -1 || !testNotNewline(nextCode) ? next : fail;
-            }
-        : kind === 'start'
-        ? (state, context) => {
-            const { lastCode } = context;
-            return lastCode === -1 ? next : fail;
-          }
-        : (state, context) => {
-            const { nextCode } = context;
-            return nextCode === -1 ? next : fail;
-          },
+      match,
       props: { kind },
     };
   };
@@ -159,11 +169,11 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
     width: 0,
     name: 'boundaryAssertion',
     next,
-    match: (state, context) => {
+    match(state, context) {
       const { lastCode, nextCode } = context;
       const lastIsWord = lastCode === -1 ? false : testWord(lastCode);
       const nextIsWord = nextCode === -1 ? false : testWord(nextCode);
-      return lastIsWord !== nextIsWord ? next : fail;
+      return lastIsWord !== nextIsWord ? this.next : fail;
     },
     props: {},
   };
@@ -177,14 +187,15 @@ const repeat =
       width: 0,
       name: 'repeat',
       next,
-      match: (state, context): State => {
+      match(state, context): State {
+        const { repeatCont, exprCont, key } = this.props;
         const repStateNode = state.repetitionStates.find(key);
         const { min, max } = repStateNode.value;
 
         if (context.seenRepetitions[key]) {
           return fail;
         } else if (max === 0) {
-          return next;
+          return this.next;
         } else {
           context.seenRepetitions[key] = true;
           const nextRepState = {
@@ -220,7 +231,8 @@ const startCapture =
       width: 0,
       name: 'startCapture',
       next,
-      match: (state) => {
+      match(state) {
+        const { idx } = this.props;
         const { result, captureStack } = state;
         const captureList = captureStack.peek();
 
@@ -237,7 +249,7 @@ const startCapture =
           .push(emptyStack);
         state.result = result === null ? '' : result;
 
-        return next;
+        return this.next;
       },
       props: { idx },
     };
@@ -249,7 +261,7 @@ const endCapture = (): UnboundMatcher => (next) => {
     width: 0,
     name: 'endCapture',
     next,
-    match: (state) => {
+    match(state) {
       const { result } = state;
       let { captureStack } = state;
       const children = captureStack.peek();
@@ -281,7 +293,7 @@ const endCapture = (): UnboundMatcher => (next) => {
       state.result = captureStack.size === 1 ? null : result;
       state.captureStack = captureStack.replace(captureList);
 
-      return next;
+      return this.next;
     },
     props: {},
   };

@@ -67,7 +67,7 @@ export type Width0Matcher = {
   type: typeof contType;
   width: 0;
   name: string;
-  next: null | Matcher | Array<Matcher>;
+  next: Matcher;
   match(state: MatcherState, context: W0Context): State;
   props: Record<string, any>;
 };
@@ -81,7 +81,7 @@ export type Width1Matcher = {
   type: typeof contType;
   width: 1;
   name: string;
-  next: null | Matcher;
+  next: Matcher;
   match(state: MatcherState, context: W1Context): State;
   props: Record<string, any>;
 };
