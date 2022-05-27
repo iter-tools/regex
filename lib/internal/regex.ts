@@ -66,7 +66,7 @@ const literal =
       width: 1,
       name: 'literal',
       next,
-      match: (state, chr, chrCode) => {
+      match: (state, { chr, chrCode }) => {
         if (negate !== test(chrCode)) {
           growResult(state, chr);
           return next;
@@ -128,20 +128,20 @@ const edgeAssertion =
         ? kind === 'start'
           ? (state, context) => {
               const { lastCode } = context;
-              return lastCode === null || !testNotNewline(lastCode) ? next : null;
+              return lastCode === -1 || !testNotNewline(lastCode) ? next : null;
             }
           : (state, context) => {
               const { nextCode } = context;
-              return nextCode === null || !testNotNewline(nextCode) ? next : null;
+              return nextCode === -1 || !testNotNewline(nextCode) ? next : null;
             }
         : kind === 'start'
         ? (state, context) => {
             const { lastCode } = context;
-            return lastCode === null ? next : null;
+            return lastCode === -1 ? next : null;
           }
         : (state, context) => {
             const { nextCode } = context;
-            return nextCode === null ? next : null;
+            return nextCode === -1 ? next : null;
           },
       props: { kind },
     };
@@ -155,8 +155,8 @@ const boundaryAssertion = (): UnboundMatcher => (next) => {
     next,
     match: (state, context) => {
       const { lastCode, nextCode } = context;
-      const lastIsWord = lastCode === null ? false : testWord(lastCode);
-      const nextIsWord = nextCode === null ? false : testWord(nextCode);
+      const lastIsWord = lastCode === -1 ? false : testWord(lastCode);
+      const nextIsWord = nextCode === -1 ? false : testWord(nextCode);
       return lastIsWord !== nextIsWord ? next : null;
     },
     props: {},

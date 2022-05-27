@@ -2,6 +2,8 @@
 .DS_Store
 
 /coverage/*
+# For now. TODO: store files in LFS
+/corpus
 
 /report.*
 /dist
