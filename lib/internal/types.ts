@@ -50,10 +50,11 @@ export type SuccessState = {
 export type State = Matcher | ExpressionState | SuccessState;
 
 export type W0Context = {
+  width: 0;
   lastChr: string | null;
-  lastCode: number | null;
+  lastCode: number;
   nextChr: string | null;
-  nextCode: number | null;
+  nextCode: number;
   seenRepetitions: Array<boolean>;
 };
 
@@ -66,13 +67,17 @@ export type Width0Matcher = {
   props: Record<string, any>;
 };
 
-export type W1Context = Record<never, never>;
+export type W1Context = {
+  width: 1;
+  chr: string;
+  chrCode: number;
+};
 export type Width1Matcher = {
   type: typeof contType;
   width: 1;
   name: string;
   next: null | Matcher;
-  match(state: MatcherState, chr: string, chrCode: number, context: W1Context): State | null;
+  match(state: MatcherState, context: W1Context): State | null;
   props: Record<string, any>;
 };
 

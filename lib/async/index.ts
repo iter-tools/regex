@@ -1,8 +1,11 @@
 import asyncPeekerate from 'iter-tools-es/methods/async-peekerate';
+import asyncWrap from 'iter-tools-es/methods/async-wrap';
+import asyncConsume from 'iter-tools-es/methods/async-consume';
 import { AsyncApi } from './api';
 import { Engine } from '../internal/engine';
+import { parse, Pattern } from '../pattern';
 
-export { parse, Pattern } from '../pattern';
+export { parse, Pattern };
 
 export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   pattern,
@@ -20,15 +23,25 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
         await peekr.advance();
       }
 
-      yield* engine.step0();
+      yield* engine.traverse0();
 
-      engine.step1();
+      engine.traverse1();
     }
 
     engine.feed(null);
 
-    yield* engine.step0();
+    yield* engine.traverse0();
   } finally {
     await peekr.return();
   }
 });
+
+const warmupPattern1 = parse('.*', 'g');
+const warmupPattern2 = parse('(a)|(b)', 'g');
+
+for (let i = 0; i < 4; i++) {
+  asyncConsume(execGlobal(warmupPattern1, asyncWrap('ab')));
+  asyncConsume(execGlobal(warmupPattern2, asyncWrap('ab')));
+  asyncConsume(execGlobal(warmupPattern2, asyncWrap('a')));
+  asyncConsume(execGlobal(warmupPattern2, asyncWrap('')));
+}

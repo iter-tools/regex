@@ -2,7 +2,7 @@ import { code } from './literals';
 import {
   State,
   MatcherState,
-  Width0Matcher,
+  Context,
   W0Context,
   W1Context,
   Matcher,
@@ -12,127 +12,18 @@ import {
 } from './types';
 import { Pattern, getPatternInternal } from '../pattern';
 
-/*
- ┌───────────────────────┐                                   ┌───────────────┐
- │ Engine data structure │           ┌─────────┐             │   Sequence    │
- │                       │           │ Matcher │             └──────┬────────┘
- │ Diagram created with  │           └─────────┘             parent │  ▲
- │ https://asciiflow.com │                  ▲                       ▼  │ best
- └───────────────────────┘                  │ next           ┌─────────┴─────┐
-                            better ┌────────┴─────┐  better  │    Match      │
-           ┌─────────┐     null ◄──┤   Sequence   │◄─────────┤ captures: ['']│
-           │ Matcher │             │              │  worse   │ globalIdx: 1  │  worse
-           └─────────┘             └──────┬───────┴─────────►└──────┬──┬─────┴──► null
-                  ▲                parent │ ▲                parent │  │ engine
-                  │ next                  ▼ │ best                  │  │
-  better ┌────────┴─────┐  better  ┌────────┴─────┐ ◄───────────────┘  │
- null ◄──┤   Sequence   │◄─────────┤  Expression  │                    │
-         │              │  worse   │              │  worse             │
-         └──────┬───────┴─────────►└──────┬───────┴──► null            │
-         parent │ ▲                parent │                            │
-                ▼ │ best                  │                            │
-         ┌────────┴─────┐ ◄───────────────┘                            │
-         │    Match     │                                              │
-         │ captures: [] │ engine                                       ▼
-         │ globalIdx: 0 ├──────────────────────────────────► ┌─────────────┐
-         └────────┬─────┘                                    │   Engine    │
-                  │ parent                                   │             │
-                  ▼  null                                    └─────────────┘
- */
-
 export type Captures = Array<string | undefined>;
 
 const cloneMatcherState = (state: MatcherState) => {
-  const { result, captureStack, captureList, repetitionStates } = state;
-  return { result, captureStack, captureList, repetitionStates };
-};
-
-const noContext: W1Context = {};
-const noMatches: Array<never> = [];
-
-const nextSeq = (node: Node | null): Sequence | null => {
-  let n: Node = node!;
-  // This algorithm can be summarized as: (up* check down* over)+
-  // The directions are in reference to the diagram above
-  if (n !== null) {
-    // prettier-ignore
-    for (;;) {
-      while (n instanceof Expression && n.best !== null) n = n.best; // up*
-      if (n instanceof Sequence && n !== node) break; // check
-      while (n.parent !== null && n.worse === null) n = n.parent; // down*
-      if (n.worse !== null) n = n.worse; // over
-      else break;
-    }
-  }
-
-  return n instanceof Match ? null : (n as Sequence);
-};
-
-const getSeq = (node: Node | null): Sequence | null => {
-  return node instanceof Sequence ? node : nextSeq(node);
+  const { result, captureStack, repetitionStates } = state;
+  return { result, captureStack, repetitionStates };
 };
 
 export class Node {
-  // next, prev in more standard terminology
-  better: Node | null;
   worse: Node | null;
-  // yes, parent can be null but only the root expression has no parent, and we need
-  // even more meticulous handling than just null checking there
-  parent: Expression;
 
-  constructor(parent: Expression) {
-    this.parent = parent;
-    this.better = null;
+  constructor() {
     this.worse = null;
-  }
-
-  replaceWith<T extends Node>(node: T): T {
-    const { worse, better, parent } = this;
-    if (worse !== null) worse.better = node;
-    if (better !== null) better.worse = node;
-    if (parent !== null && parent.best === this) parent.best = node;
-    node.parent = parent;
-    node.better = better;
-    node.worse = worse;
-    return node;
-  }
-
-  remove(): void {
-    const { worse, better, parent } = this;
-
-    // better and worse will never both be null except at the root node
-    // thus we will always have a next
-    let sibling: Node = null!;
-
-    if (better !== null) {
-      better.worse = worse;
-      sibling = better;
-    } else {
-      parent.best = worse!;
-    }
-    if (worse !== null) {
-      worse!.better = better;
-      sibling = worse;
-    }
-
-    if (sibling === null) {
-      if (!(parent instanceof Match)) throw new Error('Unepxected singleton expression');
-      parent.best = null;
-    } else if (sibling.better === null && sibling.worse === null && !(parent instanceof Match)) {
-      // make sure better and worse will (almost) never both be null!
-      parent.replaceWith(sibling);
-    }
-  }
-
-  removeWorse(): Node {
-    const { better, worse, parent } = this;
-    if (worse !== null) worse.better = null;
-    this.worse = null;
-
-    if (better === null && !(parent instanceof Match)) {
-      parent.replaceWith(this);
-    }
-    return this;
   }
 }
 
@@ -140,115 +31,10 @@ export class Sequence extends Node {
   next: Matcher;
   mutableState: MatcherState;
 
-  constructor(parent: Expression, next: Matcher, mutableState: MatcherState) {
-    super(parent);
+  constructor(next: Matcher, mutableState: MatcherState) {
+    super();
     this.next = next;
     this.mutableState = mutableState;
-  }
-
-  fail(): Sequence | null {
-    const { worse, better, parent } = this;
-
-    if (parent instanceof Match && better === null && worse === null) {
-      parent.best = null;
-      return getSeq(parent);
-    } else {
-      this.remove();
-
-      // const node = this.worse !== null ? getSeq(this.worse) : nextSeq(this);
-      // return getSeq(this.worse !== null && this.worse instanceof Match ? this.worse.promote() : node);
-
-      if (this.worse !== null && this.worse instanceof Match) {
-        this.worse.promote();
-      }
-      return nextSeq(this);
-    }
-  }
-
-  succeed(captures: Captures): Sequence | null {
-    const { parent } = this;
-    const { engine, globalIdx } = parent.match;
-
-    const match = new Match(this.parent, engine, engine.global ? globalIdx + 1 : -1, [captures]);
-
-    if (engine.global) {
-      match.buildSequences([engine.matcher], cloneMatcherState(engine.initialMatchState));
-    }
-
-    this.replaceWith(match);
-
-    return getSeq(match.promote());
-  }
-
-  explode(seqs: Array<Matcher>) {
-    const { parent, better, worse } = this;
-    if (better === null && worse === null && parent instanceof Match) {
-      return getSeq(parent.buildSequences(seqs, this.mutableState));
-    } else {
-      const expr = new Expression(parent).buildSequences(seqs, this.mutableState);
-      return getSeq(this.replaceWith(expr));
-    }
-  }
-
-  apply(state: State | null): Sequence | null {
-    if (state === null) {
-      return this.fail();
-    } else if (state.type === successType) {
-      return this.succeed(state.captures);
-    } else if (state.type === exprType) {
-      return this.explode(state.seqs);
-    } else if (state.type === contType) {
-      this.next = state;
-      return this;
-    } else {
-      throw new Error(`Unexpected state of {type: '${(state as any).type}'}`);
-    }
-  }
-}
-
-function* childrenOf(expr: Expression) {
-  let seq = expr.best;
-  while (seq !== null) {
-    yield seq;
-    seq = seq.worse;
-  }
-}
-
-// An expression serves as the head of a linked list of sequences
-export class Expression extends Node {
-  match: Match;
-  // The best child. Pending matches may have no children.
-  best: Node | null;
-
-  constructor(parent: Expression) {
-    super(parent);
-    this.match = this instanceof Match ? this : parent.match;
-    this.best = null;
-  }
-
-  buildSequences(matchers: Array<Matcher>, mutableState: MatcherState) {
-    const best = new Sequence(this, null!, mutableState);
-    let prev = best;
-
-    for (const matcher of matchers) {
-      const seq = new Sequence(this, matcher, cloneMatcherState(mutableState));
-      seq.better = prev;
-      prev.worse = seq;
-      prev = seq;
-    }
-
-    if (best.worse === null) {
-      throw new Error('Empty expressions are forbidden');
-    }
-
-    best.worse.better = null;
-
-    this.best = best.worse;
-    return this;
-  }
-
-  get children() {
-    return childrenOf(this);
   }
 }
 
@@ -256,164 +42,224 @@ export class Expression extends Node {
 //   - a pending match: the root expression of a continuing line of evaluation which may or may not succeed
 //   - a successful match: a placeholder for results while better alternatives being evaluated
 // When the global flag is enabled a single match may be both these things at the same time.
-export class Match extends Expression {
-  engine: Engine;
+export class Match extends Node {
+  pattern: Pattern;
   // Disambiguate between successive occurences of the pattern when matching globally
   globalIdx: number;
-  // An array of captures
-  // In a global pattern successive global matches may succeed while waiting for a better match to resolve
-  matches: Array<Captures>;
+  captures: Captures | null;
+  head: Node;
 
-  constructor(parent: Expression, engine: Engine, globalIdx: number, matches: Array<Captures>) {
-    super(parent);
-    this.engine = engine;
+  constructor(pattern: Pattern, globalIdx: number, captures: Captures | null = null) {
+    super();
+    this.pattern = pattern;
     this.globalIdx = globalIdx;
-    this.matches = matches;
-  }
+    this.head = new Node();
+    this.captures = captures;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  replaceWith<T extends Node>(node: T): T {
-    if (!(node instanceof Match)) throw new Error('Cannot replace match with non-match');
-    this.matches.push(...node.matches);
-    node.matches = this.matches;
-    if (this.parent === null) {
-      this.engine.root = node;
-    }
-    return super.replaceWith(node);
-  }
+    if (pattern.global || globalIdx === 0) {
+      const { initialState, matcher } = getPatternInternal(pattern);
 
-  // Put this match in its correct position in the structure, eliminating any worse sequences
-  promote(): Expression | null {
-    let expr: Expression = this;
-    // A single match may break out of multiple layers of nesting
-    while (expr.better === null && (expr === this || !(expr instanceof Match))) {
-      expr = expr.parent;
-    }
-
-    if (expr !== this && expr instanceof Match) {
-      return expr.replaceWith(this);
-    } else {
-      expr.removeWorse();
-      if (expr !== this) expr.replaceWith(this);
-      return expr;
+      this.head.worse = new Sequence(matcher, cloneMatcherState(initialState));
     }
   }
 }
 
 export class Engine {
+  /* eslint-disable lines-between-class-members */
   global: boolean;
   root: Match;
-  matcher: Width0Matcher;
-  initialMatchState: MatcherState;
   repetitionCount: number;
-  index: number;
-  width: number;
-  lastChr: string | null;
-  chr: string | null;
-  starved: boolean;
+  index = 0;
+  starved = true;
+  context0: W0Context = {
+    width: 0,
+    lastChr: undefined!,
+    lastCode: -1,
+    nextChr: undefined!,
+    nextCode: -1,
+    seenRepetitions: [],
+  };
+  context1: W1Context = {
+    width: 1,
+    chr: undefined!,
+    chrCode: -1,
+  };
+  context: Context = this.context0;
+  match: Match;
+  prevNode: Node = null!;
+  node: Node | null = null;
+  /* eslint-enable lines-between-class-members */
 
   constructor(pattern: Pattern) {
-    const { initialState, matcher } = getPatternInternal(pattern);
     this.global = pattern.global;
-    this.initialMatchState = initialState;
-    this.repetitionCount = initialState.repetitionStates.length;
-    this.matcher = matcher;
+    this.repetitionCount = getPatternInternal(pattern).initialState.repetitionStates.length;
 
-    this.root = new Match(null!, this, pattern.global ? 0 : -1, []);
-    this.root.buildSequences([matcher], initialState);
-
-    this.index = 0;
-    this.width = 0;
-    this.lastChr = undefined!;
-    this.chr = undefined!;
-    this.starved = true;
+    this.root = new Match(pattern, 0);
+    this.match = this.root;
   }
 
   get done() {
-    return this.root.best === null;
+    return this.root.head.worse === null;
   }
 
   feed(chr: string | null) {
-    this.lastChr = this.chr;
-    this.chr = chr;
-    if (chr !== null) {
-      this.index++;
-    }
-    if (this.lastChr !== undefined) {
+    const { context0: ctx0, context1: ctx1 } = this;
+
+    ctx0.lastChr = ctx0.nextChr;
+    ctx0.lastCode = ctx0.nextCode;
+    ctx0.nextChr = chr;
+    ctx0.nextCode = chr === null ? -1 : code(chr);
+    ctx0.seenRepetitions = new Array(this.repetitionCount);
+
+    if (ctx0.lastChr !== undefined) {
       this.starved = false;
+    }
+
+    if (ctx0.nextChr !== null) {
+      ctx1.chr = ctx0.nextChr;
+      ctx1.chrCode = ctx0.nextCode;
+    }
+  }
+
+  startTraversal(match: Match) {
+    const { head } = match;
+    this.prevNode = head;
+    this.node = head.worse;
+    this.match = match;
+  }
+
+  fail() {
+    if (!(this.node instanceof Sequence)) throw new Error();
+
+    this.prevNode.worse = this.node = this.node.worse;
+  }
+
+  succeed(captures: Captures) {
+    const { node, match } = this;
+    if (!(node instanceof Sequence)) throw new Error();
+    const { pattern, globalIdx } = match;
+
+    // Stop matching any worse alternatives
+    this.prevNode.worse = this.node = new Match(pattern, globalIdx + 1, captures);
+  }
+
+  explode(matchers: Array<Matcher>) {
+    const { node } = this;
+    if (!(node instanceof Sequence)) throw new Error();
+
+    const { mutableState, worse } = node;
+
+    let prev = this.prevNode;
+    let seq: Sequence = undefined!;
+    for (const matcher of matchers) {
+      seq = new Sequence(matcher, cloneMatcherState(mutableState));
+      prev.worse = seq;
+      prev = seq;
+    }
+
+    seq.worse = worse;
+
+    // continue from the first of the nodes we just inserted
+    this.node = this.prevNode.worse;
+  }
+
+  apply(state: State | null) {
+    if (!(this.node instanceof Sequence)) throw new Error();
+
+    if (state === null) {
+      this.fail();
+    } else if (state.type === successType) {
+      this.succeed(state.captures);
+    } else if (state.type === exprType) {
+      this.explode(state.seqs);
+    } else if (state.type === contType) {
+      this.node.next = state;
+    } else {
+      throw new Error(`Unexpected state of {type: '${(state as any).type}'}`);
     }
   }
 
   step0() {
-    const { lastChr, chr, starved } = this;
+    const context = this.context as W0Context;
+
+    let { node } = this;
+    while (node instanceof Sequence && node.next.width === 0) {
+      this.apply(node.next.match(node.mutableState, context));
+      ({ node } = this);
+    }
+    if (node instanceof Sequence && node.next.width === 1 && context.nextChr === null) {
+      this.fail();
+    }
+  }
+
+  step1() {
+    const context = this.context as W1Context;
+    if (this.node instanceof Sequence) {
+      const { next, mutableState } = this.node;
+      if (next.width === 1) {
+        this.apply(next.match(mutableState, context));
+      } else {
+        throw new Error('w0 where w1 expected');
+      }
+    }
+  }
+
+  traverse(step: () => void) {
+    this.startTraversal(this.root);
+
+    while (true) {
+      while (this.node !== null) {
+        const { node } = this;
+        step();
+        if (node === this.node) {
+          this.prevNode = this.node;
+          this.node = this.node.worse;
+        }
+      }
+      const last = this.prevNode;
+      if (last instanceof Match && last.head.worse !== null) {
+        this.startTraversal(last);
+      } else {
+        break;
+      }
+    }
+  }
+
+  traverse0() {
+    const { starved } = this;
 
     if (starved) {
       throw new Error('step0 called without feeding new input');
     }
 
-    const seenRepetitions = new Array(this.repetitionCount);
-    const context: W0Context = {
-      lastChr,
-      lastCode: lastChr === null ? null : code(lastChr),
-      nextChr: chr,
-      nextCode: chr === null ? null : code(chr),
-      seenRepetitions,
-    };
+    this.context = this.context0;
 
-    let seq: Sequence | null = nextSeq(this.root);
+    this.traverse(() => this.step0());
 
-    while (seq !== null) {
-      const { next, mutableState } = seq;
+    const matches: Array<Captures> = [];
 
-      if (next.width === 0) {
-        // Match against any number of chained width 0 states
-        seq = seq.apply(next.match(mutableState, context));
-      } else if (chr === null) {
-        // the input ended before the pattern succeeded
-        seq = seq.fail();
+    let match = this.root;
+    while (true) {
+      if (match.captures !== null) {
+        matches.push(match.captures);
+        match.captures = null;
+      }
+      if (match.head.worse instanceof Match) {
+        match = match.head.worse;
       } else {
-        seq = nextSeq(seq);
+        break;
       }
     }
+    this.root = match;
 
-    const { root } = this;
-    const { matches } = root;
-
-    if (chr === null) {
-      root.best = null;
-    } else {
-      this.width = 1;
-    }
-
-    if (matches.length > 0) {
-      root.matches = [];
-      return matches;
-    } else {
-      return noMatches;
-    }
+    return matches;
   }
 
-  step1() {
-    const { chr } = this;
-    let seq = nextSeq(this.root);
+  traverse1() {
+    this.context = this.context1;
 
-    if (chr === null) {
-      throw new Error('step1 cannot be called on {chr: null}');
-    }
+    this.traverse(() => this.step1());
 
-    while (seq !== null) {
-      const { next, mutableState } = seq;
-
-      if (next.width !== 1) {
-        throw new Error('Unexpectedly ran step1 with width 0 matchers active');
-      }
-
-      const node = seq.apply(next.match(mutableState, chr, code(chr), noContext));
-      // Remove returns the nextSeq, so don't skip it
-      seq = node === seq ? nextSeq(node) : node;
-    }
-
-    this.width = 0;
     this.starved = true;
   }
 }
