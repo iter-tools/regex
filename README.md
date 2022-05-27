@@ -1,8 +1,8 @@
 # @iter-tools/regex
 
-`@iter-tools/regex` is a fully-featured non-backtracking regex engine, scripted in javascript. The engine's implementation is non-backtracking, which makes it ideal for matching against streaming inputs of any kind. It is expected to be used most commonly in the building of streaming parsers, especially in conjunction with `@iter-tools/parserate` (coming soon!).
+`@iter-tools/regex` is a fully-featured regex engine, scripted in javascript. The engine's implementation is non-backtracking, which makes it ideal for matching against streaming inputs of any kind. It is expected to be used most commonly in the building of streaming parsers, especially in conjunction with `@iter-tools/parserate` (coming soon!).
 
-Not everyone needs a streaming regex engine, but sometimes its abilities are extremely useful. It is able to work on live input streams for example, which are of potentially infinite size. This is because its non-backtracking state machine (it's an NFA) means it need only keep one character (ok, two characters) from a stream in memory at a time.
+Not everyone needs a streaming regex engine. If you are matching a static regex against string data, it is very likely that you should be using the native regex implementation. However if you are working on data that is fundamentally a stream and this engine may save you from having to load all the data into a string first. If perf is your only reason to use this engine, make sure to do some tests to see that you are actually gaining perf. **The engine is still quite slow!**
 
 ## Performance
 
@@ -10,7 +10,7 @@ The non-backtracking design also means the engine is not vulnerable to the pheno
 
 While the engine is not vulnerable to catastrophic backtracking, it can still be attacked or misued. Bad patterns will tend to cause the engine's match state to balloon in size, consuming lots of memory.
 
-If you do not need a streaming regex engine, it is still possible that it could offer you performance benefits. This implementation does not compete with the native implementation for raw speed, but bandwidth is a major constraint and it is possible to do some useful work without having all the data loaded then the concurrency it provides can easily make it faster than the alternate approach, even for files of a modest size. If performance is a serious concern, only testing can show what is fastest for an arbitrary combination of input and pattern.
+In terms of raw performance, this library is still extremely slow -- 50x - 80x slower than native regex for normal patterns, and currently up to 2000x slower for certain patterns that do not contain any branches. Current work is on closing this perf gap, and there is reason to think it can be narrowed significantly.
 
 ## API
 
