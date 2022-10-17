@@ -29,24 +29,30 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
 
     try {
       while (!engine.done && !peekr.done) {
-        if (engine.starved) {
+        const { starved } = engine;
+        if (starved) {
           engine.feed(peekr.value);
+        }
+
+        yield* engine.traverse0();
+
+        if (starved) {
           peekr = peekr.advance();
 
           while (peekr.done && !chunkPeekr.done) {
             chunkPeekr = await chunkPeekr.advance();
             peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
           }
-        } else if (engine.context.width === 0) {
-          yield* engine.traverse0();
-        } else {
-          engine.traverse1();
         }
+
+        engine.traverse1();
       }
 
-      engine.feed(null);
+      if (peekr.done) {
+        engine.feed(null);
 
-      yield* engine.traverse0();
+        yield* engine.traverse0();
+      }
     } finally {
       peekr.return();
     }

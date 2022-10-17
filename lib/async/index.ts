@@ -18,19 +18,25 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
     engine.feed(null);
 
     while (!engine.done && !peekr.done) {
-      if (engine.starved) {
+      const { starved } = engine;
+      if (starved) {
         engine.feed(peekr.value);
-        await peekr.advance();
       }
 
       yield* engine.traverse0();
 
+      if (starved) {
+        await peekr.advance();
+      }
+
       engine.traverse1();
     }
 
-    engine.feed(null);
+    if (peekr.done) {
+      engine.feed(null);
 
-    yield* engine.traverse0();
+      yield* engine.traverse0();
+    }
   } finally {
     await peekr.return();
   }
