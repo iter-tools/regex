@@ -20,23 +20,24 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   let peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
 
   try {
-    engine.feed(null);
-
     while (peekr.done && !chunkPeekr.done) {
       chunkPeekr = await chunkPeekr.advance();
       peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
     }
 
+    engine.feed(null);
+
     try {
       while (!engine.done && !peekr.done) {
-        const { starved } = engine;
-        if (starved) {
-          engine.feed(peekr.value);
-        }
+        engine.feed(peekr.value);
 
         yield* engine.traverse0();
 
-        if (starved) {
+        engine.traverse1();
+
+        if (engine.done) {
+          break;
+        } else {
           peekr = peekr.advance();
 
           while (peekr.done && !chunkPeekr.done) {
@@ -44,8 +45,6 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
             peekr = chunkPeekr.done ? emptyPeekr : chunkPeekr.value;
           }
         }
-
-        engine.traverse1();
       }
 
       if (peekr.done) {

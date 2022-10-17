@@ -11,25 +11,24 @@ export const { exec, test, execGlobal } = new AsyncApi(async function* generate(
   pattern,
   iterable: AsyncIterable<string>,
 ) {
-  const peekr = await asyncPeekerate(iterable);
   const engine = new Engine(pattern);
+  let peekr = await asyncPeekerate(iterable);
 
   try {
     engine.feed(null);
 
-    while (!engine.done && !peekr.done) {
-      const { starved } = engine;
-      if (starved) {
-        engine.feed(peekr.value);
-      }
+    while (!peekr.done) {
+      engine.feed(peekr.value);
 
       yield* engine.traverse0();
 
-      if (starved) {
-        await peekr.advance();
-      }
-
       engine.traverse1();
+
+      if (engine.done) {
+        break;
+      } else {
+        peekr = await peekr.advance();
+      }
     }
 
     if (peekr.done) {

@@ -10,25 +10,24 @@ export const { exec, test, execGlobal } = new Api(function* generate(
   pattern,
   iterable: Iterable<string>,
 ) {
-  const peekr = peekerate(iterable);
   const engine = new Engine(pattern);
+  let peekr = peekerate(iterable);
 
   try {
     engine.feed(null);
 
-    while (!engine.done && !peekr.done) {
-      const { starved } = engine;
-      if (starved) {
-        engine.feed(peekr.value);
-      }
+    while (!peekr.done) {
+      engine.feed(peekr.value);
 
       yield* engine.traverse0();
 
-      if (starved) {
-        peekr.advance();
-      }
-
       engine.traverse1();
+
+      if (engine.done) {
+        break;
+      } else {
+        peekr = peekr.advance();
+      }
     }
 
     if (peekr.done) {
