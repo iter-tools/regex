@@ -13,7 +13,7 @@ type Generate<I> = (
 
 declare const _: unique symbol;
 
-export declare class AsyncApi<I> {
+export class AsyncApi<I> {
   private [_];
 
   constructor(generate: Generate<I>);

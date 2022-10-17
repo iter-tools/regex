@@ -10,7 +10,7 @@ type Generate<I> = (pattern: Pattern, iterable: I) => IterableIterator<Array<str
 
 declare const _: unique symbol;
 
-export declare class Api<I> {
+export class Api<I> {
   private [_];
 
   constructor(generate: Generate<I>);

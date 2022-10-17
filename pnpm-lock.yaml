@@ -6,7 +6,7 @@ specifiers:
   '@babel/plugin-transform-modules-commonjs': ^7.12.1
   '@babel/preset-typescript': ^7.12.7
   '@iter-tools/imm-stack': ^1.1.0
-  '@macrome/generator-typescript': github:macrome-js/generator-typescript#31a59aea6934522799c2446ed278b4f01169d1cd
+  '@macrome/generator-typescript': github:macrome-js/generator-typescript#6779845447ed20b8af81c8d5f7108f0843485498
   '@typescript-eslint/eslint-plugin': ^5.16.0
   '@typescript-eslint/parser': ^5.16.0
   babel-jest: ^26.6.3
@@ -40,7 +40,7 @@ devDependencies:
   '@babel/core': 7.17.4
   '@babel/plugin-transform-modules-commonjs': 7.16.8_@babel+core@7.17.4
   '@babel/preset-typescript': 7.16.7_@babel+core@7.17.4
-  '@macrome/generator-typescript': github.com/macrome-js/generator-typescript/31a59aea6934522799c2446ed278b4f01169d1cd
+  '@macrome/generator-typescript': github.com/macrome-js/generator-typescript/6779845447ed20b8af81c8d5f7108f0843485498
   '@typescript-eslint/eslint-plugin': 5.16.0_gambruxd3ebcnmhb6iqqprpfhm
   '@typescript-eslint/parser': 5.16.0_2de3j2mqba4wgeuiaqz2k7syrm
   babel-jest: 26.6.3_@babel+core@7.17.4
@@ -2067,7 +2067,7 @@ packages:
     dev: true
 
   /es6-iterator/2.0.3:
-    resolution: {integrity: sha1-p96IkUGgWpSwhUQDstCg+/qY87c=}
+    resolution: {integrity: sha512-zw4SRzoUkd+cl+ZoE15A9o1oQd920Bb0iOJMQkQhl3jNc03YqVjAhG7scf9C5KWRU/R13Orf588uCC6525o02g==}
     dependencies:
       d: 1.0.1
       es5-ext: 0.10.53
@@ -2418,7 +2418,7 @@ packages:
     dev: true
 
   /event-emitter/0.3.5:
-    resolution: {integrity: sha1-34xp7vFkeSPHFXuc6DhAYQsCzDk=}
+    resolution: {integrity: sha512-D9rRn9y7kLPnJ+hMq7S/nhvoKwwvVJahBi2BPmx3bvbsEdK3W9ii8cBSGjP+72/LnM4n6fo3+dkCX5FeTQruXA==}
     dependencies:
       d: 1.0.1
       es5-ext: 0.10.53
@@ -2794,7 +2794,7 @@ packages:
     optional: true
 
   /has-ansi/3.0.0:
-    resolution: {integrity: sha1-Ngd+8dFfMzSEqn+neihgbxxlWzc=}
+    resolution: {integrity: sha512-5JRDTvNq6mVkaMHQVXrGnaCXHD6JfqxwCy8LA/DQSqLLqePR9uaJVm2u3Ek/UziJFQz+d1ul99RtfIhE2aorkQ==}
     engines: {node: '>=4'}
     dependencies:
       ansi-regex: 3.0.0
@@ -4013,7 +4013,7 @@ packages:
     dev: true
 
   /lru-queue/0.1.0:
-    resolution: {integrity: sha1-Jzi9nw089PhEkMVzbEhpmsYyzaM=}
+    resolution: {integrity: sha512-BpdYkt9EvGl8OfWHDQPISVpcl5xZthb+XPsbELj5AQXxIC8IriDZIQYjBJPEm5rS420sjZ0TLEzRcq5KdBhYrQ==}
     dependencies:
       es5-ext: 0.10.53
     dev: true
@@ -4173,7 +4173,7 @@ packages:
     dev: true
 
   /next-tick/1.0.0:
-    resolution: {integrity: sha1-yobR/ogoFpsBICCOPchCS524NCw=}
+    resolution: {integrity: sha512-mc/caHeUcdjnC/boPWJefDr4KUIWQNv+tlnFnJd38QMou86QtxQzBJfxgGRzvx8jazYRqrVlaHarfO72uNxPOg==}
     dev: true
 
   /next-tick/1.1.0:
@@ -5690,8 +5690,8 @@ packages:
       tslib: 2.3.1
     dev: true
 
-  github.com/macrome-js/generator-typescript/31a59aea6934522799c2446ed278b4f01169d1cd:
-    resolution: {tarball: https://codeload.github.com/macrome-js/generator-typescript/tar.gz/31a59aea6934522799c2446ed278b4f01169d1cd}
+  github.com/macrome-js/generator-typescript/6779845447ed20b8af81c8d5f7108f0843485498:
+    resolution: {tarball: https://codeload.github.com/macrome-js/generator-typescript/tar.gz/6779845447ed20b8af81c8d5f7108f0843485498}
     name: '@macrome/generator-typescript'
     version: 0.1.0
     engines: {node: '>=15.0.0'}
